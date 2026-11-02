@@ -1,0 +1,31 @@
+@import "./design-system/tokens.css";
+@import "./design-system/design-system.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; border-color: var(--ds-border-default); }
+  html, body, #root { margin: 0; min-height: 100%; }
+  html { background: var(--ds-bg-canvas); }
+  body {
+    min-width: 320px;
+    min-height: 100dvh;
+    overflow: hidden;
+    background: var(--ds-bg-canvas);
+    color: var(--ds-text-primary);
+    font-family: var(--ds-font-sans);
+    font-size: var(--ds-text-xl);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  button, input, textarea { font: inherit; }
+  button { color: inherit; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible, [role='menuitem']:focus-visible {
+    outline: 2px solid var(--ds-focus-ring);
+    outline-offset: 2px;
+  }
+  ::selection { background: var(--ds-blue-600); color: var(--ds-text-on-accent); }
+}
