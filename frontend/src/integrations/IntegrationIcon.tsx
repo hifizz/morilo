@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { Github } from 'lucide-react'
 
 interface IntegrationIconProps {
   icon: string
@@ -17,6 +18,8 @@ export function IntegrationIcon({ icon, size = 40, className = '' }: Integration
   )
 
   switch (icon) {
+    case 'github':
+      return <span className={classes} style={style} aria-hidden="true"><Github size={size * 0.62} /></span>
     case 'vercel':
       return svg(<path d="M20 7 34 32H6L20 7Z" fill="#050505" />)
     case 'supabase':

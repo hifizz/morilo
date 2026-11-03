@@ -43,13 +43,17 @@ const app = (
   team: category === 'Team plugins',
 })
 
-const vercelSkills = buildSkills('vercel', 33, [
-  ['access-protected-vercel-deployment', 'Access and test Vercel deployments protected by Vercel Authentication, SSO, or Deployment Protection.'],
-  ['ai-gateway', 'Vercel AI Gateway guidance for setup, model discovery, authentication, routing, fallbacks, virtual models, evaluation models, BYOK, and budgets.'],
-  ['ai-sdk', 'Vercel AI SDK expert guidance. Use when building AI-powered features — chat interfaces, text generation, structured output, and tool calling.'],
-  ['auth', 'Authentication integration guidance — Clerk, Better Auth, Descope, and Auth0 setup for Next.js applications.'],
-  ['bootstrap', 'Project bootstrapping orchestrator for repos that depend on Vercel-linked resources, databases, auth, and managed integrations.'],
-])
+const githubSkills: IntegrationSkill[] = [
+  { id: 'GITHUB_GET_THE_AUTHENTICATED_USER', name: 'Read profile', description: 'Read the authenticated GitHub profile.' },
+  { id: 'GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER', name: 'List accessible repositories', description: 'List repositories accessible through existing account grants.' },
+  { id: 'GITHUB_GET_A_REPOSITORY', name: 'Read repository details', description: 'Read details of an accessible repository.' },
+  { id: 'GITHUB_LIST_REPOSITORY_ISSUES', name: 'Read repository issues', description: 'Read issues in an accessible repository.' },
+]
+
+const vercelSkills: IntegrationSkill[] = [
+  { id: 'VERCEL_GET_PROJECTS', name: 'Read projects', description: 'List accessible Vercel projects without environment variables.' },
+  { id: 'VERCEL_GET_DEPLOYMENTS', name: 'Read deployments', description: 'List accessible Vercel deployments.' },
+]
 
 const cloudflareSkills = buildSkills('cloudflare', 16, [
   ['agents-sdk', 'Build, debug, or review Cloudflare Agents SDK applications using the agents package.'],
@@ -65,8 +69,9 @@ const contextSkills = buildSkills('context-dev', 11, [
 ])
 
 export const integrationApps: IntegrationApp[] = [
+  { ...app('github', 'GitHub', 'Code', 'github', 'Read accessible account information, repositories, and issues.', githubSkills, true), website: 'github.com', available: true },
+  { ...app('vercel', 'Vercel', 'Code', 'vercel', 'Read projects and deployments.', vercelSkills, true), website: 'vercel.com', available: true },
   app('datadog', 'Datadog', 'Code', 'datadog', 'Monitor infrastructure, applications, and logs.', buildSkills('datadog', 4), true),
-  { ...app('vercel', 'Vercel', 'Code', 'vercel', 'Build and deploy web apps and agents.', vercelSkills, true), website: 'vercel.com' },
   app('supabase', 'Supabase', 'Code', 'supabase', 'Build with a Postgres database, authentication, and storage.', buildSkills('supabase', 8), true),
   { ...app('cloudflare', 'Cloudflare', 'Code', 'cloudflare', 'Connect applications to Cloudflare infrastructure and developer tools.', cloudflareSkills, true), website: 'www.cloudflare.com' },
   app('sentry', 'Sentry', 'Code', 'sentry', 'Find and fix application errors with full-stack monitoring.', buildSkills('sentry', 3), true),
@@ -115,14 +120,6 @@ export const integrationApps: IntegrationApp[] = [
   app('cloudflare-team', 'cloudflare', 'Team plugins', 'cloudflare-team', 'Your team’s private Cloudflare plugin.', buildSkills('cloudflare-team', 2)),
   app('codex-team', 'codex', 'Team plugins', 'codex-team', 'Your team’s private Codex plugin.', buildSkills('codex-team', 2)),
   app('oz-harness-support', 'oz-harness-support', 'Team plugins', 'oz-harness', 'Private support workflows for your team.'),
-]
-
-export const initialInstalledIntegrationIds = [
-  'gmail', 'outlook', 'x', 'linear', 'context-dev', 'feishu', 'parallel', 'notion', 'slack', 'figma',
-]
-
-export const initialConnectedIntegrationIds = [
-  'gmail', 'x', 'context-dev', 'parallel', 'notion', 'slack', 'figma', 'stripe', 'discord', 'telegram',
 ]
 
 export const initialPrivateSkills: PrivateSkill[] = [

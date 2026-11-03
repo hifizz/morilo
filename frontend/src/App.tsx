@@ -17,29 +17,45 @@ import { IntegrationDialog } from '@/integrations/IntegrationDialog'
 import { useIntegrationStore } from '@/integrations/useIntegrationStore'
 import { ReferralDialog } from '@/settings/ReferralDialog'
 import { SettingsDialog } from '@/settings/SettingsDialog'
+import { useSettings } from '@/settings/SettingsProvider'
+import { LocalProfilePicker } from '@/components/LocalProfilePicker'
+import { palette } from '@/components/AgentAvatar'
 import type { SettingsSection } from '@/settings/types'
 import type { Agent, ChatMessage, Conversation } from '@/types/chat'
 
 type MobilePanel = 'sidebar' | 'inspector' | null
 
-const toolProgress: Record<string, string> = {
-  read: '正在查看文件…',
-  computer_read: '正在查看文件…',
-  write: '正在保存文件…',
-  edit: '正在修改文件…',
-  computer_write: '正在保存文件…',
-  grep: '正在查找内容…',
-  find: '正在查找文件…',
-  ls: '正在查看文件目录…',
-  bash: '正在执行任务…',
-  computer_exec: '正在执行任务…',
-  computer_desktop: '正在操作电脑…',
+const toolProgress: Record<string, [string, string]> = {
+  read: ['正在查看文件…', 'Reading file…'],
+  computer_read: ['正在查看文件…', 'Reading file…'],
+  write: ['正在保存文件…', 'Saving file…'],
+  edit: ['正在修改文件…', 'Editing file…'],
+  computer_write: ['正在保存文件…', 'Saving file…'],
+  grep: ['正在查找内容…', 'Searching content…'],
+  find: ['正在查找文件…', 'Finding files…'],
+  ls: ['正在查看文件目录…', 'Listing directory…'],
+  bash: ['正在执行任务…', 'Running task…'],
+  computer_exec: ['正在执行任务…', 'Running task…'],
+  computer_desktop: ['正在操作电脑…', 'Controlling computer…'],
 }
 
 export default function App() {
-  const [conversations, setConversations] = useState<Conversation[]>(initialConversations)
+  const { snapshot, profile, loading, error, retry, t } = useSettings()
+  if (loading) return <div className="app-loading" aria-busy="true" aria-label={t('正在读取设置', 'Loading settings')} />
+  if (!snapshot) return <div className="app-loading"><p>{error || t('设置读取失败', 'Could not load settings')}</p><button type="button" onClick={retry}>{t('重试', 'Retry')}</button></div>
+  if (!profile) return <LocalProfilePicker />
+  return <ConversationApp key={profile.id} profileID={profile.id} />
+}
+
+function ConversationApp({ profileID }: { profileID: string }) {
+  const { snapshot, t } = useSettings()
+  const isLegacyProfile = snapshot?.profiles[0]?.id === profileID
+  const [conversations, setConversations] = useState<Conversation[]>(() =>
+    isLegacyProfile ? initialConversations : [{ ...initialConversations[0], messages: [], tasks: [], preview: '' }],
+  )
   const [availableAgents, setAvailableAgents] = useState<Agent[]>(agents)
   const [activeId, setActiveId] = useState(() => {
+    if (!isLegacyProfile) return 'default'
     const hash = window.location.hash.slice(1)
     return initialConversations.some((item) => item.id === hash) ? hash : 'xresearcher'
   })
@@ -66,6 +82,21 @@ export default function App() {
 
   const activeConversation = conversations.find((item) => item.id === activeId) ?? conversations[0]
   const activeAgent = useMemo(() => availableAgents.find((agent) => agent.id === activeConversation.agentId) ?? availableAgents[0], [activeConversation, availableAgents])
+
+  const accentPref = snapshot?.preferences.accent ?? 'bot'
+  useEffect(() => {
+    const root = document.documentElement
+    const base = accentPref === 'bot' ? palette[activeAgent.color] : accentPref === 'blue' ? '#4d8dff' : '#858585'
+    const control = `color-mix(in srgb, ${base} 45%, black)`
+    root.style.setProperty('--ds-accent-default', `light-dark(${control}, ${base})`)
+    root.style.setProperty('--ds-accent-control', control)
+    root.style.setProperty('--ds-surface-message-user', control)
+    return () => {
+      root.style.removeProperty('--ds-accent-default')
+      root.style.removeProperty('--ds-accent-control')
+      root.style.removeProperty('--ds-surface-message-user')
+    }
+  }, [accentPref, activeAgent.color])
   const renameConversation = conversations.find((item) => item.id === renameId)
 
   const notify = useCallback((message: string) => {
@@ -77,28 +108,64 @@ export default function App() {
   useEffect(() => () => { window.clearTimeout(toastTimer.current); window.clearTimeout(replyTimer.current) }, [])
 
   // Restore persisted conversations and bots, then keep saving them.
+  const stateKey = `grokbot-state-${profileID}`
+  const [loadError, setLoadError] = useState('')
+  const [hydrated, setHydrated] = useState(false)
+  const [loadRetry, setLoadRetry] = useState(0)
+  const latestState = useRef('')
+  const typingRef = useRef<string | null>(null)
+  typingRef.current = typingFor
   useEffect(() => {
-    if (!isMyGo()) { stateLoaded.current = true; return }
-    Store.load()
-      .then((raw) => {
-        if (!raw) return
+    stateLoaded.current = false
+    setHydrated(false)
+    let canceled = false
+    const apply = (raw: string) => {
+      if (canceled) return
+      let nextConversations = conversations
+      let nextAgents = availableAgents
+      if (raw) {
         try {
-          const state = JSON.parse(raw) as { conversations?: Conversation[]; agents?: Agent[] }
-          if (state.conversations?.length) setConversations(state.conversations)
-          if (state.agents?.length) setAvailableAgents(state.agents)
-        } catch { /* corrupted state: keep the demo data */ }
-      })
-      .catch(() => {})
-      .finally(() => { stateLoaded.current = true })
-  }, [])
+          const saved = JSON.parse(raw) as { conversations?: Conversation[]; agents?: Agent[] }
+          if (!Array.isArray(saved.conversations) || !saved.conversations.length) throw new Error('Invalid saved conversations')
+          nextConversations = saved.conversations
+          if (saved.agents?.length) nextAgents = saved.agents
+        } catch (err) { /* corrupted state: keep the demo data */ throw err }
+      }
+      latestState.current = JSON.stringify({ conversations: nextConversations, agents: nextAgents })
+      setConversations(nextConversations)
+      setAvailableAgents(nextAgents)
+      stateLoaded.current = true
+      setHydrated(true)
+    }
+    const failed = (err: unknown) => { if (!canceled) setLoadError(err instanceof Error ? err.message : String(err)) }
+    if (isMyGo()) void Store.load(profileID).then(apply).catch(failed)
+    else {
+      try { apply(localStorage.getItem(stateKey) ?? '') } catch (err) { failed(err) }
+    }
+    return () => { canceled = true }
+  }, [profileID, stateKey, loadRetry])
+
+  latestState.current = stateLoaded.current ? JSON.stringify({ conversations, agents: availableAgents }) : latestState.current
+
+  useEffect(() => () => {
+    if (stateLoaded.current && latestState.current) {
+      if (isMyGo()) Store.save(profileID, latestState.current).catch(() => {})
+      else localStorage.setItem(stateKey, latestState.current)
+    }
+    if (typingRef.current && isMyGo()) Chat.stop(profileID, typingRef.current).catch(() => {})
+  }, [profileID, stateKey])
 
   useEffect(() => {
-    if (!stateLoaded.current || !isMyGo()) return
+    if (!stateLoaded.current) return
     const timer = window.setTimeout(() => {
-      Store.save(JSON.stringify({ conversations, agents: availableAgents })).catch(() => {})
+      const raw = latestState.current
+      if (isMyGo()) Store.save(profileID, raw).catch(() => notify(t('会话保存失败，请重试', 'Could not save conversations. Please retry.')))
+      else {
+        try { localStorage.setItem(stateKey, raw) } catch { notify(t('会话保存失败，请检查浏览器存储空间', 'Could not save conversations. Check browser storage.')) }
+      }
     }, 600)
     return () => window.clearTimeout(timer)
-  }, [conversations, availableAgents])
+  }, [conversations, availableAgents, profileID, stateKey, notify, t])
 
   useEffect(() => {
     const openSearch = (event: KeyboardEvent) => {
@@ -126,7 +193,7 @@ export default function App() {
 
   const sendMessage = (text: string, attachment?: string, quote?: string) => {
     const targetId = activeConversation.id
-    const userMessage: ChatMessage = { id: `user-${Date.now()}`, sender: 'user', text: attachment ? `${text}\n\n附件：${attachment}` : text, quote }
+    const userMessage: ChatMessage = { id: `user-${Date.now()}`, sender: 'user', text: attachment ? `${text}\n\n附件：${attachment}` : text, quote, createdAt: new Date().toISOString() }
     setConversations((items) => items.map((item) => item.id === targetId ? { ...item, preview: text, messages: [...item.messages, userMessage] } : item))
     setTypingFor(targetId)
 
@@ -137,6 +204,7 @@ export default function App() {
         const reply: ChatMessage = {
           id: `agent-${Date.now()}`, sender: 'agent',
           text: `收到。我会先把这个需求整理成一个最小可验证的步骤，再在当前会话里同步进度。\n\n这是前端演示回复；接入真实 Agent 后，这里会返回 ${activeAgent.name} 的实际执行结果。`,
+          createdAt: new Date().toISOString(),
         }
         setConversations((items) => items.map((item) => item.id === targetId ? { ...item, messages: [...item.messages, reply] } : item))
         setTypingFor(null)
@@ -164,7 +232,7 @@ export default function App() {
           if (!text) return
           const msgId = `agent-${runId}-${seg}-${k}`
           const index = next.findIndex((message) => message.id === msgId)
-          if (index === -1) next.push({ id: msgId, sender: 'agent' as const, text })
+          if (index === -1) next.push({ id: msgId, sender: 'agent' as const, text, createdAt: new Date().toISOString() })
           else next[index] = { ...next[index], text }
         })
         return next
@@ -174,21 +242,21 @@ export default function App() {
     const channel = new Channel<ChatEvent>((e) => {
       if (e.type === 'text' && e.delta) {
         appendAgentText(e.seg ?? 0, e.delta)
-        setProgress((current) => ({ ...current, [targetId]: '正在回复…' }))
+        setProgress((current) => ({ ...current, [targetId]: t('正在回复…', 'Replying…') }))
       } else if (e.type === 'thinking') {
-        setProgress((current) => ({ ...current, [targetId]: '正在思考…' }))
+        setProgress((current) => ({ ...current, [targetId]: t('正在思考…', 'Thinking…') }))
       } else if (e.type === 'tool_start') {
-        setProgress((current) => ({ ...current, [targetId]: toolProgress[e.tool ?? ''] ?? '正在处理任务…' }))
+        setProgress((current) => ({ ...current, [targetId]: toolProgress[e.tool ?? ''] ? t(...toolProgress[e.tool ?? '']) : t('正在处理任务…', 'Working…') }))
       } else if (e.type === 'tool_end') {
-        setProgress((current) => ({ ...current, [targetId]: e.failed ? '正在处理执行问题…' : '正在整理结果…' }))
+        setProgress((current) => ({ ...current, [targetId]: e.failed ? t('正在处理执行问题…', 'Handling an issue…') : t('正在整理结果…', 'Wrapping up…') }))
       } else if (e.type === 'error') {
-        pushEvent({ text: `出错：${e.detail || '未知错误'}` })
+        pushEvent({ text: t(`出错：${e.detail || t('未知错误', 'Unknown error')}`, `Error: ${e.detail || t('未知错误', 'Unknown error')}`) })
       }
     })
     const prompt = quote ? `> ${quote}\n\n${text}` : text
-    Chat.send(targetId, prompt, channel)
+    Chat.send(profileID, targetId, prompt, channel)
       .catch((err) => {
-        pushEvent({ text: `发送失败：${isCallError(err) ? err.message : String(err)}` })
+        pushEvent({ text: t(`发送失败：${isCallError(err) ? err.message : String(err)}`, `Could not send: ${isCallError(err) ? err.message : String(err)}`) })
       })
       .finally(() => {
         setTypingFor(null)
@@ -239,7 +307,7 @@ export default function App() {
     setConversations((items) => [conversation, ...items])
     setNewBotOpen(false)
     selectConversation(agentId)
-    notify(`已创建 Bot「${input.name}」`)
+    notify(t(`已创建 Bot「${input.name}」`, `Created bot “${input.name}”`))
   }
 
   const handleConversationAction = async (id: string, action: BotContextAction) => {
@@ -248,37 +316,38 @@ export default function App() {
 
     if (action === 'pin') {
       setConversations((items) => items.map((item) => item.id === id ? { ...item, pinned: !item.pinned } : item))
-      notify(target.pinned ? `已取消置顶「${target.title}」` : `已置顶「${target.title}」`)
+      notify(target.pinned ? t(`已取消置顶「${target.title}」`, `Unpinned “${target.title}”`) : t(`已置顶「${target.title}」`, `Pinned “${target.title}”`))
     } else if (action === 'move') {
-      setConversations((items) => items.map((item) => item.id === id ? { ...item, section: 'New section' } : item))
-      notify(`已将「${target.title}」移动到 New section`)
+      const section = t('新分区', 'New section')
+      setConversations((items) => items.map((item) => item.id === id ? { ...item, section } : item))
+      notify(t(`已将「${target.title}」移动到${section}`, `Moved “${target.title}” to ${section}`))
     } else if (action === 'unread') {
       setConversations((items) => items.map((item) => item.id === id ? { ...item, unread: !item.unread } : item))
-      notify(target.unread ? '已标记为已读' : '已标记为未读')
+      notify(target.unread ? t('已标记为已读', 'Marked as read') : t('已标记为未读', 'Marked as unread'))
     } else if (action === 'rename') {
       setRenameId(id)
     } else if (action === 'copy') {
       try {
         await navigator.clipboard.writeText(id)
-        notify(`已复制会话 ID：${id}`)
+        notify(t(`已复制会话 ID：${id}`, `Copied conversation ID: ${id}`))
       } catch {
-        notify(`会话 ID：${id}`)
+        notify(t(`会话 ID：${id}`, `Conversation ID: ${id}`))
       }
     } else if (action === 'hide' || action === 'delete') {
       const remaining = conversations.filter((item) => item.id !== id && !item.hidden)
       if (remaining.length === 0) {
-        notify('列表中至少需要保留一个 Bot')
+        notify(t('列表中至少需要保留一个 Bot', 'Keep at least one bot in the list'))
         return
       }
       if (action === 'hide') {
         setConversations((items) => items.map((item) => item.id === id ? { ...item, hidden: true } : item))
-        notify(`已从侧栏隐藏「${target.title}」`)
+        notify(t(`已从侧栏隐藏「${target.title}」`, `Hid “${target.title}” from the sidebar`))
       } else {
         setConversations((items) => items.filter((item) => item.id !== id))
         if (!remaining.some((item) => item.agentId === target.agentId)) {
           setAvailableAgents((items) => items.filter((agent) => agent.id !== target.agentId))
         }
-        notify(`已删除「${target.title}」`)
+        notify(t(`已删除「${target.title}」`, `Deleted “${target.title}”`))
       }
       if (activeId === id) selectConversation(remaining[0].id)
     }
@@ -289,16 +358,27 @@ export default function App() {
     setConversations((items) => items.map((item) => item.id === renameConversation.id ? { ...item, title: name } : item))
     setAvailableAgents((items) => items.map((agent) => agent.id === renameConversation.agentId ? { ...agent, name } : agent))
     setRenameId(null)
-    notify(`已重命名为「${name}」`)
+    notify(t(`已重命名为「${name}」`, `Renamed to “${name}”`))
   }
 
   const clearChat = () => {
-    if (isMyGo()) Chat.reset(activeId).catch(() => {})
+    if (isMyGo()) Chat.reset(profileID, activeId).catch(() => {})
     setConversations((items) => items.map((item) => item.id === activeId ? { ...item, messages: [], preview: '新会话', tasks: [] } : item))
-    notify('当前会话已清空')
+    notify(t('当前会话已清空', 'Current conversation cleared'))
   }
 
   const shellStyle = { '--sidebar-width': `${collapsed ? 74 : sidebarWidth}px`, '--inspector-width': `${inspectorWidth}px` } as CSSProperties
+
+  if (loadError) {
+    return (
+      <div className="app-loading">
+        <p>{t('会话状态读取失败', 'Could not load conversations')}: {loadError}</p>
+        <button type="button" onClick={() => { setLoadError(''); setLoadRetry((v) => v + 1) }}>{t('重试', 'Retry')}</button>
+      </div>
+    )
+  }
+
+  if (!hydrated) return <div className="app-loading" aria-busy="true" aria-label={t('正在读取会话', 'Loading conversations')} />
 
   return (
     <div className="app-stage">
@@ -345,12 +425,12 @@ export default function App() {
       </div>
 
       {mobilePanel === 'sidebar' && (
-        <MobileDrawer side="left" label="会话列表" onClose={() => setMobilePanel(null)}>
+        <MobileDrawer side="left" label={t('会话列表', 'Conversations')} onClose={() => setMobilePanel(null)}>
           <Sidebar mobile agents={availableAgents} conversations={conversations} activeId={activeId} collapsed={false} onCollapse={() => setMobilePanel(null)} onSelect={selectConversation} onNew={() => { setMobilePanel(null); setNewBotOpen(true) }} onSearch={() => { setMobilePanel(null); setSearchOpen(true) }} onOpenIntegrations={openIntegrations} onOpenReferral={openReferral} onCloseMobile={() => setMobilePanel(null)} onOpenSettings={openSettings} onConversationAction={handleConversationAction} onNotify={notify} />
         </MobileDrawer>
       )}
       {mobilePanel === 'inspector' && (
-        <MobileDrawer side="right" label="Agent 详情" onClose={() => setMobilePanel(null)}>
+        <MobileDrawer side="right" label={t('Agent 详情', 'Agent details')} onClose={() => setMobilePanel(null)}>
           <InspectorPanel key={activeAgent.id} mobile agent={activeAgent} conversation={activeConversation} files={libraryFiles} onClose={() => setMobilePanel(null)} onNotify={notify} />
         </MobileDrawer>
       )}

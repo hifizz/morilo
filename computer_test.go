@@ -301,13 +301,18 @@ func TestComputerStatusUnconfigured(t *testing.T) {
 
 func TestPiEnvStripsProviderKey(t *testing.T) {
 	t.Setenv("INSTABOX_API_KEY", "sekret")
+	t.Setenv("COMPOSIO_API_KEY", "csekret")
+	t.Setenv("GROKBOT_APPS_URL", "http://stale")
+	t.Setenv("GROKBOT_APPS_TOKEN", "stale")
 	env := piEnv("/tmp/agent", computerEndpoint{url: "http://x", token: "tok"})
 	seen := map[string]bool{}
 	for _, e := range env {
 		k, _, _ := strings.Cut(e, "=")
 		seen[k] = true
-		if strings.HasPrefix(e, "INSTABOX_API_KEY=") {
-			t.Fatal("provider key leaked into pi environment")
+		for _, p := range []string{"INSTABOX_API_KEY=", "COMPOSIO_API_KEY=", "GROKBOT_APPS_URL=", "GROKBOT_APPS_TOKEN="} {
+			if strings.HasPrefix(e, p) {
+				t.Fatalf("secret or stale bridge env leaked: %s", e)
+			}
 		}
 	}
 	for _, k := range []string{"PI_CODING_AGENT_DIR", "GROKBOT_COMPUTER_URL", "GROKBOT_COMPUTER_TOKEN"} {

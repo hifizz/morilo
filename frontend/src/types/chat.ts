@@ -18,6 +18,7 @@ export interface ChatMessage {
   quote?: string
   code?: string
   taskTitle?: string
+  createdAt?: string
 }
 
 export interface AgentTask {

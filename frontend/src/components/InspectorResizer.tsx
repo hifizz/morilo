@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useSettings } from '@/settings/SettingsProvider'
 
 const MIN_WIDTH = 280
 const DEFAULT_WIDTH = 420
@@ -13,6 +14,7 @@ interface InspectorResizerProps {
 const getMaxWidth = (sidebarWidth: number) => Math.max(MIN_WIDTH, window.innerWidth - sidebarWidth - 320)
 
 export function InspectorResizer({ width, sidebarWidth, onWidthChange, onResizingChange }: InspectorResizerProps) {
+  const { t } = useSettings()
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   useEffect(() => () => {
@@ -35,14 +37,14 @@ export function InspectorResizer({ width, sidebarWidth, onWidthChange, onResizin
     <div
       className="inspector-resizer desktop-only"
       role="separator"
-      aria-label="调整右侧面板宽度"
+      aria-label={t('调整右侧面板宽度', 'Resize details panel')}
       aria-orientation="vertical"
       aria-controls="agent-inspector"
       aria-valuemin={MIN_WIDTH}
       aria-valuemax={getMaxWidth(sidebarWidth)}
       aria-valuenow={clamp(width)}
       tabIndex={0}
-      title="拖动调整宽度，双击还原"
+      title={t('拖动调整宽度，双击还原', 'Drag to resize, double-click to reset')}
       onPointerDown={(event) => {
         if (event.button !== 0) return
         event.preventDefault()

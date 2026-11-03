@@ -5,6 +5,11 @@ export default defineConfig({
   slug: "grokbot",
   identifier: "dev.grokbot.app",
   version: "0.1.0",
+  macos: {
+    infoPlist: {
+      NSMicrophoneUsageDescription: "Grokbot uses the microphone for the input level test in Settings.",
+    },
+  },
 
   devUrl: "http://localhost:3000",
   devCommand: "npm --prefix frontend run dev",

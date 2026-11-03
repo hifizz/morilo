@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react'
 import type { AgentColor } from '@/types/chat'
 
-const palette: Record<AgentColor, string> = {
+export const palette: Record<AgentColor, string> = {
   blue: '#4d8dff', orange: '#ff9a3c', green: '#55c981', purple: '#a779e9',
   teal: '#4db9a9', gray: '#858585', red: '#f15d62', white: '#f1f1ee', yellow: '#e9ae42',
 }

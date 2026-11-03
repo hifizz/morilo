@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/egoist/mygo"
 )
@@ -32,20 +33,29 @@ type ChatEvent struct {
 // Chat is the bound service the frontend talks to. Each conversation owns
 // one pi subprocess in RPC mode, keeping the agent's context in memory.
 type Chat struct {
-	mu       sync.Mutex
-	sessions map[string]*piSession
-	computer *Computer
+	mu           sync.Mutex
+	sessions     map[string]*piSession
+	computer     *Computer
+	settings     *Settings
+	integrations *Integrations
 }
 
 // NewChat binds the service: `mygo.Bind(NewChat())`.
-func NewChat(computer *Computer) *Chat {
-	return &Chat{sessions: map[string]*piSession{}, computer: computer}
+func NewChat(computer *Computer, settings *Settings) *Chat {
+	return &Chat{sessions: map[string]*piSession{}, computer: computer, settings: settings}
 }
 
 // Send runs one prompt of a conversation, streaming its pieces to events.
 // Concurrent sends of one conversation run one after another.
-func (c *Chat) Send(ctx context.Context, conversationID, text string, events *mygo.Channel[ChatEvent]) error {
-	sess, err := c.session(conversationID)
+func (c *Chat) Send(ctx context.Context, profileID, conversationID, text string, events *mygo.Channel[ChatEvent]) error {
+	if c.settings != nil {
+		var err error
+		text, err = c.settings.contextMessage(profileID, text, time.Now())
+		if err != nil {
+			return err
+		}
+	}
+	sess, err := c.session(profileID, conversationID)
 	if err != nil {
 		return err
 	}
@@ -55,9 +65,9 @@ func (c *Chat) Send(ctx context.Context, conversationID, text string, events *my
 }
 
 // Stop aborts the conversation's running agent, if any.
-func (c *Chat) Stop(conversationID string) error {
+func (c *Chat) Stop(profileID, conversationID string) error {
 	c.mu.Lock()
-	sess := c.sessions[conversationID]
+	sess := c.sessions[profileID+":"+conversationID]
 	c.mu.Unlock()
 	if sess == nil {
 		return nil
@@ -67,10 +77,10 @@ func (c *Chat) Stop(conversationID string) error {
 }
 
 // Reset drops the conversation's agent; the next Send starts a fresh one.
-func (c *Chat) Reset(conversationID string) error {
+func (c *Chat) Reset(profileID, conversationID string) error {
 	c.mu.Lock()
-	sess := c.sessions[conversationID]
-	delete(c.sessions, conversationID)
+	sess := c.sessions[profileID+":"+conversationID]
+	delete(c.sessions, profileID+":"+conversationID)
 	c.mu.Unlock()
 	if sess != nil {
 		sess.kill()
@@ -78,17 +88,33 @@ func (c *Chat) Reset(conversationID string) error {
 	return nil
 }
 
-func (c *Chat) session(conversationID string) (*piSession, error) {
+func (c *Chat) logicalID(profileID, conversationID string) string {
+	if c.settings == nil || c.settings.isDefaultProfile(profileID) {
+		return conversationID
+	}
+	return profileID + ":" + conversationID
+}
+
+func (c *Chat) session(profileID, conversationID string) (*piSession, error) {
+	key := profileID + ":" + conversationID
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if sess := c.sessions[conversationID]; sess != nil && sess.alive() {
+	if sess := c.sessions[key]; sess != nil && sess.alive() {
 		return sess, nil
 	}
-	sess, err := startPi(conversationID, c.computer)
+	var apps []integrationEndpoint
+	if c.integrations != nil {
+		endpoint, err := c.integrations.bridge(profileID)
+		if err != nil {
+			return nil, err
+		}
+		apps = append(apps, endpoint)
+	}
+	sess, err := startPi(c.logicalID(profileID, conversationID), c.computer, apps...)
 	if err != nil {
 		return nil, err
 	}
-	c.sessions[conversationID] = sess
+	c.sessions[key] = sess
 	return sess, nil
 }
 
@@ -118,11 +144,11 @@ type rpcResponse struct {
 
 // chatStylePrompt teaches the bot to answer as several short chat messages,
 // separated by ¶, which the app splits into bubbles.
-const chatStylePrompt = `你在一个即时通讯界面里和用户对话。默认把回复拆成多条简短的消息，每条一两句话，就像一个人连续发好几条消息那样；相邻两条消息之间用单独一个 ¶ 字符分隔，¶ 前后不用换行或空行，也不要把它放进代码块或引用里。只有当内容必须是整体时——比如一段代码、一份文档——才发单独一条。`
+const chatStylePrompt = `你在一个即时通讯界面里和用户对话。默认把回复拆成多条简短的消息，每条一两句话，就像一个人连续发好几条消息那样；相邻两条消息之间用单独一个 ¶ 字符分隔，¶ 前后不用换行或空行，也不要把它放进代码块或引用里。只有当内容必须是整体时——比如一段代码、一份文档——才发单独一条。工具执行进度已有独立状态栏。普通聊天只用自然语言说明必要进展、结论和业务数据，不主动展示工具名称、接口标识、调用参数、执行日志或原始返回 JSON，也不要逐条播报工具发现和调用步骤。需要说明依据时，给出资料来源或资源链接，而不是工具名。只有用户明确要求 API、工具调试或原始结果时才展示这些技术细节；用户要求的代码、命令、数据格式和必要标识应正常保留。`
 
 const remoteComputerPrompt = `你的工具操作对象是所有 Bot 共用的远程 Linux 电脑，不是运行聊天程序的本机 Mac。使用 computer_exec、computer_read、computer_write 和 computer_desktop 完成操作。远程默认工作目录是 /data/home；每次命令的 shell 独立，需要切换目录时指定 cwd 或在同一条命令里 cd。桌面操作前先截图，按截图坐标操作。没有工具结果时不要声称操作已经完成。`
 
-func startPi(conversationID string, computer *Computer) (*piSession, error) {
+func startPi(conversationID string, computer *Computer, apps ...integrationEndpoint) (*piSession, error) {
 	bin, err := exec.LookPath("pi")
 	if err != nil {
 		home, _ := os.UserHomeDir()
@@ -157,11 +183,17 @@ func startPi(conversationID string, computer *Computer) (*piSession, error) {
 			"--extension", endpoint.path,
 			"--append-system-prompt", remoteComputerPrompt)
 	}
+	for _, endpoint := range apps {
+		args = append(args, "--extension", endpoint.path)
+	}
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = workdir
 	// Grokbot keeps its own pi agent directory: providers, credentials and
 	// settings stay apart from the user's global ~/.pi/agent.
 	cmd.Env = piEnv(agentDir, endpoint)
+	for _, endpoint := range apps {
+		cmd.Env = append(cmd.Env, "GROKBOT_APPS_URL="+endpoint.url, "GROKBOT_APPS_TOKEN="+endpoint.token)
+	}
 	cmd.Stderr = log.Writer()
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -186,9 +218,9 @@ func startPi(conversationID string, computer *Computer) (*piSession, error) {
 }
 
 func piEnv(agentDir string, endpoint computerEndpoint) []string {
-	env := make([]string, 0, len(os.Environ())+4)
+	env := make([]string, 0, len(os.Environ())+7)
 	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "INSTABOX_API_KEY=") {
+		if strings.HasPrefix(e, "INSTABOX_API_KEY=") || strings.HasPrefix(e, "COMPOSIO_API_KEY=") || strings.HasPrefix(e, "GROKBOT_APPS_URL=") || strings.HasPrefix(e, "GROKBOT_APPS_TOKEN=") {
 			continue
 		}
 		env = append(env, e)

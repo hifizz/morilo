@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import { Dialog, TextField } from '@/design-system'
 import type { Agent, Conversation } from '@/types/chat'
 import { AgentAvatar } from './AgentAvatar'
+import { useSettings } from '@/settings/SettingsProvider'
 
 interface SearchResult {
   id: string
@@ -21,6 +22,7 @@ interface ConversationSearchDialogProps {
 }
 
 export function ConversationSearchDialog({ agents, conversations, activeId, onSelect, onClose }: ConversationSearchDialogProps) {
+  const { t, snapshot } = useSettings()
   const [query, setQuery] = useState('')
   const [requestedIndex, setRequestedIndex] = useState(() => Math.max(0, conversations.findIndex((item) => item.id === activeId)))
   const listRef = useRef<HTMLDivElement>(null)
@@ -77,7 +79,7 @@ export function ConversationSearchDialog({ agents, conversations, activeId, onSe
   }, [selectedIndex])
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title="搜索并切换会话" hideHeader hideCloseButton className="conversation-search-dialog">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title={t('搜索并切换会话', 'Search and switch conversations')} closeLabel={t('关闭', 'Close')} hideHeader hideCloseButton className="conversation-search-dialog">
       <label className="conversation-search-dialog__input">
         <Search size={19} aria-hidden="true" />
         <TextField
@@ -85,13 +87,14 @@ export function ConversationSearchDialog({ agents, conversations, activeId, onSe
           autoFocus
           value={query}
           onChange={(event) => { setQuery(event.target.value); setRequestedIndex(0) }}
-          placeholder="Search"
-          aria-label="搜索 Bot 或会话"
+          placeholder={t('搜索', 'Search')}
+          aria-label={t('搜索 Bot 或会话', 'Search bots or conversations')}
+          spellCheck={snapshot?.preferences.spellcheck ?? true}
           autoComplete="off"
         />
         {query && <kbd>ESC</kbd>}
       </label>
-      <div className="conversation-search-results" ref={listRef} role="listbox" aria-label="会话搜索结果">
+      <div className="conversation-search-results" ref={listRef} role="listbox" aria-label={t('会话搜索结果', 'Conversation search results')}>
         {results.map((result, index) => (
           <button
             type="button"
@@ -107,14 +110,14 @@ export function ConversationSearchDialog({ agents, conversations, activeId, onSe
               <strong>{result.title}</strong>
               <span>{result.description}</span>
             </span>
-            {index < 8 && <kbd aria-label={`快捷键 Command ${index + 1}`}>⌘{index + 1}</kbd>}
+            {index < 8 && <kbd aria-label={t(`快捷键 Command ${index + 1}`, `Shortcut Command ${index + 1}`)}>⌘{index + 1}</kbd>}
           </button>
         ))}
         {results.length === 0 && (
           <div className="conversation-search-empty">
             <Search size={22} />
-            <strong>没有找到相关会话</strong>
-            <span>试试 Bot 名称或消息关键词</span>
+            <strong>{t('没有找到相关会话', 'No matching conversations')}</strong>
+            <span>{t('试试 Bot 名称或消息关键词', 'Try a bot name or message keyword')}</span>
           </div>
         )}
       </div>

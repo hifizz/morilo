@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { ChatMessage } from '@/types/chat'
 import { MessageToolbar } from './MessageToolbar'
+import { MarkdownText } from './MarkdownText'
+import { useSettings } from '@/settings/SettingsProvider'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -10,6 +12,10 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message, onReply, onNotify }: MessageBubbleProps) {
   const [reaction, setReaction] = useState<string | null>(null)
+  const { locale, snapshot } = useSettings()
+  const timeLabel = message.createdAt
+    ? new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: snapshot?.preferences.timezone === 'auto' ? undefined : snapshot?.preferences.timezone }).format(new Date(message.createdAt))
+    : undefined
 
   if (message.sender === 'event') {
     if (message.taskTitle) {
@@ -19,10 +25,12 @@ export function MessageBubble({ message, onReply, onNotify }: MessageBubbleProps
   }
 
   return (
-    <article className={`message-row message-row--${message.sender}`}>
+    <article className={`message-row message-row--${message.sender}`} title={timeLabel}>
       <div className={`message-bubble message-bubble--${message.sender}`}>
         {message.quote && <div className="message-quote">{message.quote}</div>}
-        <div className="message-text">{message.text}</div>
+        <div className={message.sender === 'agent' ? 'message-text message-text--markdown' : 'message-text'}>
+          {message.sender === 'agent' ? <MarkdownText text={message.text} /> : message.text}
+        </div>
         {message.code && <pre className="message-code"><code>{message.code}</code></pre>}
       </div>
       {message.sender === 'agent' && (

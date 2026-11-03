@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
@@ -9,15 +10,43 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if os.Getenv("MYGO_SELFTEST") != "" {
+		dir, err := os.MkdirTemp("", "grokbot-selftest-")
+		if err != nil {
+			log.Fatal(err)
+		}
+		mygo.App.SetPath(mygo.PathUserData, dir)
+	}
 	computer := NewComputer(computerBackend())
+	settings, err := NewSettings()
+	if err != nil {
+		log.Fatalf("settings: %v", err)
+	}
+	mygo.Bind(settings)
 	mygo.Bind(computer)
-	mygo.Bind(NewChat(computer))
-	if store, err := NewStore(); err != nil {
+	integrations, err := NewIntegrations(func(id string) error { _, err := settings.profile(id); return err })
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer integrations.close()
+	mygo.Bind(integrations)
+	chat := NewChat(computer, settings)
+	chat.integrations = integrations
+	mygo.Bind(chat)
+	if store, err := NewStore(settings); err != nil {
 		log.Printf("store: %v (state will not persist)", err)
 	} else {
 		mygo.Bind(store)
 	}
 	mygo.App.WhenReady(func() {
+		settings.applyTheme = func(theme string) {
+			mygo.Theme.SetSource(mygo.ThemeSource(theme))
+		}
+		if snapshot, err := settings.Get(); err == nil {
+			settings.applyTheme(snapshot.Preferences.Theme)
+		}
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:         "Grokbot",
 			URL:           "/",
@@ -30,6 +59,7 @@ func main() {
 			// Center the traffic lights in the 46px sidebar actions row.
 			TrafficLightPosition: &mygo.Point{X: 15, Y: 17},
 		})
+		startDevDiagnostics(ctx, win, settings, integrations)
 		if os.Getenv("MYGO_SELFTEST") != "" {
 			go selftest(win)
 		}

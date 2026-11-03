@@ -1,3 +1,5 @@
+import type { IntegrationConnection } from '@/mygo'
+
 export type IntegrationCategory =
   | 'Password Managers'
   | 'Productivity'
@@ -30,6 +32,7 @@ export interface IntegrationApp {
   skills: IntegrationSkill[]
   recommended?: boolean
   team?: boolean
+  available?: boolean
 }
 
 export interface PrivateSkill {
@@ -43,10 +46,17 @@ export interface IntegrationStore {
   installedIds: string[]
   connectedIds: string[]
   privateSkills: PrivateSkill[]
-  installApp: (id: string) => void
-  uninstallApp: (id: string) => void
-  connectApp: (id: string) => void
-  disconnectApp: (id: string) => void
+  desktop: boolean
+  configured: boolean
+  loading: boolean
+  busy: boolean
+  error: string
+  notice: string
+  connections: IntegrationConnection[]
+  refresh: () => Promise<void>
+  configure: (apiKey: string) => Promise<boolean>
+  connect: (appId: string) => Promise<boolean>
+  disconnect: (connectionId: string) => Promise<boolean>
   savePrivateSkill: (skill: PrivateSkill) => void
   deletePrivateSkill: (id: string) => void
 }

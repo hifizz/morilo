@@ -1,22 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
 import {
   Box,
-  Check,
   ChevronLeft,
   Link,
-  Plug,
-  Plus,
-  SquareArrowOutUpRight,
+  RefreshCw,
 } from 'lucide-react'
 import { Button, IconButton } from '@/design-system'
+import { useSettings } from '@/settings/SettingsProvider'
 import { IntegrationIcon } from './IntegrationIcon'
+import { IntegrationFeedback, IntegrationSetup } from './IntegrationSetup'
+import { integrationCapabilityLabel, integrationCategoryLabel, integrationStatusLabel } from './presentation'
 import type { IntegrationApp, IntegrationStore } from './types'
-
-interface IntegrationAccount {
-  id: string
-  label: string
-  status: 'pending' | 'connected'
-}
 
 interface AppDetailsProps {
   app: IntegrationApp
@@ -26,190 +19,114 @@ interface AppDetailsProps {
 }
 
 export function AppDetails({ app, store, onBack, onNotify }: AppDetailsProps) {
-  const installed = store.installedIds.includes(app.id)
+  const { profile, t } = useSettings()
   const connected = store.connectedIds.includes(app.id)
-  const [installing, setInstalling] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [showAllSkills, setShowAllSkills] = useState(false)
-  const [addingAccount, setAddingAccount] = useState(false)
-  const [accountLabel, setAccountLabel] = useState('')
-  const [accounts, setAccounts] = useState<IntegrationAccount[]>(() => (
-    installed ? [{ id: 'default', label: 'default', status: connected ? 'connected' : 'pending' }] : []
-  ))
-  const timers = useRef<number[]>([])
+  const accounts = store.connections.filter((connection) => connection.appId === app.id)
 
-  useEffect(() => () => {
-    timers.current.forEach((timer) => window.clearTimeout(timer))
-  }, [])
-
-  const schedule = (callback: () => void, delay: number) => {
-    timers.current.push(window.setTimeout(callback, delay))
-  }
-
-  const install = () => {
-    if (installing) return
-    setInstalling(true)
-    onNotify(`Added ${app.name}`)
-    schedule(() => {
-      store.installApp(app.id)
-      setAccounts([{ id: 'default', label: 'default', status: 'pending' }])
-      setInstalling(false)
-    }, 700)
-  }
-
-  const uninstall = () => {
-    store.uninstallApp(app.id)
-    setAccounts([])
-    setAddingAccount(false)
-    onNotify(`Removed ${app.name}`)
-  }
-
-  const authorize = (accountId = 'default') => {
-    setAccounts((items) => items.map((account) => account.id === accountId ? { ...account, status: 'pending' } : account))
-    onNotify(`Opened the ${app.name} OAuth flow in your browser. Return here once it completes.`)
-    schedule(() => {
-      store.connectApp(app.id)
-      setAccounts((items) => items.map((account) => account.id === accountId ? { ...account, status: 'connected' } : account))
-      onNotify(`${app.name} connected`)
-    }, 1400)
-  }
-
-  const addAccount = () => {
-    const id = `account-${accounts.length + 1}`
-    const label = accountLabel.trim() || `Account ${accounts.length + 1}`
-    setAccounts((items) => [...items, { id, label, status: 'pending' }])
-    setAccountLabel('')
-    setAddingAccount(false)
-    onNotify(`Opened the ${app.name} OAuth flow in your browser. Return here once it completes.`)
-    schedule(() => {
-      store.connectApp(app.id)
-      setAccounts((items) => items.map((account) => account.id === id ? { ...account, status: 'connected' } : account))
-      onNotify(`${label} connected`)
-    }, 1400)
-  }
-
-  const disconnect = (accountId: string) => {
-    const next = accounts.map((account) => account.id === accountId ? { ...account, status: 'pending' as const } : account)
-    setAccounts(next)
-    if (!next.some((account) => account.status === 'connected')) store.disconnectApp(app.id)
-    onNotify(`${app.name} account disconnected`)
+  const disconnect = async (accountId: string) => {
+    const confirmed = window.confirm(t(
+      `从本地用户「${profile?.name ?? ''}」解除此 ${app.name} 连接？此操作不可撤销，不会删除上游账户或撤销上游 Token。可以之后重新连接。`,
+      `Unlink this ${app.name} connection from local profile “${profile?.name ?? ''}”? This cannot be undone. It does not delete the upstream account or revoke its token. You can reconnect later.`,
+    ))
+    if (confirmed && await store.disconnect(accountId)) onNotify(t('已解除连接。', 'Connection unlinked.'))
   }
 
   const share = async () => {
     try {
-      await navigator.clipboard.writeText(`https://grok.bot/integrations/${app.id}`)
+      await navigator.clipboard.writeText(`https://${app.website}`)
+      onNotify(t('已复制网站链接。', 'Website link copied.'))
     } catch {
       // Clipboard may be unavailable in a sandboxed preview.
+      onNotify(t('无法复制网站链接。', 'Could not copy website link.'))
     }
-    setCopied(true)
-    schedule(() => setCopied(false), 1600)
   }
-
-  const visibleSkills = showAllSkills ? app.skills : app.skills.slice(0, 5)
 
   return (
     <div className="integration-details">
       <header className="integration-subheader">
-        <IconButton label="Back to Connect Apps" onClick={onBack}><ChevronLeft size={20} /></IconButton>
+        <IconButton label={t('返回连接应用', 'Back to Connect Apps')} onClick={onBack}><ChevronLeft size={20} /></IconButton>
         <h2>{app.name}</h2>
       </header>
 
       <div className="integration-scroll integration-details__scroll">
+        <IntegrationFeedback store={store} />
         <section className="integration-app-hero">
           <div className="integration-app-hero__top">
             <div className="integration-app-hero__identity">
               <IntegrationIcon icon={app.icon} size={58} />
-              <h3>{app.name}{installed && <Link size={14} aria-label="已安装" />}</h3>
+              <h3>{app.name}</h3>
             </div>
             <div className="integration-app-hero__actions">
-              <Button variant="secondary" onClick={share}>{copied ? <Check size={15} /> : <Link size={15} />}{copied ? 'Copied' : 'Share'}</Button>
-              {installed ? (
-                <Button variant="secondary" onClick={uninstall}>Uninstall</Button>
-              ) : (
-                <Button onClick={install} disabled={installing}>{installing ? 'Connecting…' : 'Connect'}</Button>
-              )}
+              <Button variant="secondary" onClick={() => void share()}><Link size={15} />{t('复制网站', 'Copy website')}</Button>
+              <Button
+                onClick={() => void store.connect(app.id)}
+                disabled={!app.available || !store.desktop || !store.configured || store.busy || store.loading || connected}
+              >
+                {!app.available ? t('尚未接入', 'Coming soon') : connected ? t('已连接', 'Connected') : store.busy ? t('处理中…', 'Working…') : accounts.length ? t('重新连接', 'Reconnect') : t('连接', 'Connect')}
+              </Button>
             </div>
           </div>
-          <p>{app.description}</p>
+          <p>{!app.available ? t('此应用尚未接入，当前无法安装或连接。', 'This app is coming soon and cannot be installed or connected yet.') : app.id === 'github' ? t('读取已授权可见的账户资料、仓库和议题。', app.description) : t('读取项目和部署。', app.description)}</p>
         </section>
 
-        {installed && accounts.length > 0 && (
+        {app.available && (
+          <>
+            <p className="integration-readonly">
+              {t(
+                'Grokbot 仅开放只读工具，不会创建或修改仓库、议题、项目或部署。GitHub 默认只申请 read:user，不请求私有仓库权限；实际可见资源取决于账户已有授权。Vercel Token 在 Composio 授权页输入并由 Composio 保存，其原始权限由该 Token 决定。',
+                'Grokbot exposes read-only tools only; it cannot create or modify repositories, issues, projects, or deployments. GitHub requests only read:user by default, not private-repository access; visible resources depend on existing account grants. Enter your Vercel token on the Composio authorization page. Composio stores it, and its original permissions are determined by that token.',
+              )}
+            </p>
+            {(!store.configured || !store.desktop) && <IntegrationSetup store={store} />}
+          </>
+        )}
+
+        {app.available && (
           <section className="integration-detail-section">
-            <h3>Accounts</h3>
+            <div className="integration-section__heading">
+              <h3>{t('当前本地用户的连接', 'Connections for this local profile')}</h3>
+              <Button variant="ghost" size="sm" disabled={!store.desktop || store.loading || store.busy} onClick={() => void store.refresh()}><RefreshCw size={13} />{t('刷新', 'Refresh')}</Button>
+            </div>
+            {!accounts.length && <p className="integration-muted">{store.loading ? t('读取状态中…', 'Reading status…') : t('尚无连接。授权完成后请返回刷新。', 'No connections yet. Return and refresh after authorization.')}</p>}
             <div className="integration-panel integration-accounts">
               {accounts.map((account) => (
                 <div className="integration-account" key={account.id}>
                   <div className="integration-account__copy">
-                    <strong>{account.label}<SquareArrowOutUpRight size={12} /></strong>
-                    <span>{account.status === 'connected' ? `${app.name} account authorized.` : `Waiting for ${app.name} authorization…`}</span>
+                    <strong>{account.label || app.name}</strong>
+                    <span>{account.id}</span>
                   </div>
-                  <span className={account.status === 'connected' ? 'integration-account-status is-connected' : 'integration-account-status'}>
-                    {account.status === 'connected' ? 'Connected' : 'Not connected'}
+                  <span className={account.status === 'ACTIVE' ? 'integration-account-status is-connected' : 'integration-account-status'}>
+                    {integrationStatusLabel(account.status, t)}
                   </span>
-                  {account.status === 'connected' ? (
-                    <Button variant="secondary" size="sm" onClick={() => disconnect(account.id)}>Disconnect</Button>
-                  ) : (
-                    <Button variant="secondary" size="sm" onClick={() => authorize(account.id)}>Reconnect</Button>
-                  )}
+                  <Button variant="secondary" size="sm" disabled={store.busy || store.loading} onClick={() => void disconnect(account.id)}>{t('解除连接', 'Disconnect')}</Button>
                 </div>
               ))}
-              {addingAccount ? (
-                <div className="integration-account-form">
-                  <input
-                    autoFocus
-                    value={accountLabel}
-                    onChange={(event) => setAccountLabel(event.target.value)}
-                    placeholder="Label this account, e.g. work or personal"
-                    aria-label="账户标签"
-                    onKeyDown={(event) => { if (event.key === 'Enter') addAccount() }}
-                  />
-                  <Button variant="secondary" size="sm" onClick={addAccount}>Connect</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setAddingAccount(false)}>Cancel</Button>
-                </div>
-              ) : (
-                <button type="button" className="integration-add-account" onClick={() => setAddingAccount(true)}>
-                  <Plus size={15} />Add Another Account
-                </button>
-              )}
             </div>
+            {accounts.filter((account) => account.status === 'ACTIVE').length > 1 && <p className="integration-muted">{t('读取工具使用列表中的首个有效连接。', 'Read tools use the first active connection in this list.')}</p>}
           </section>
         )}
 
-        <section className="integration-detail-section">
-          <h3>Apps <span>1</span></h3>
-          <div className="integration-panel integration-connector">
-            <Plug size={18} />
-            <div><strong>{app.connectorName}</strong><span>Connector</span></div>
-          </div>
-        </section>
-
-        {app.skills.length > 0 && (
+        {app.available && (
           <section className="integration-detail-section">
-            <h3>Skills <span>{app.skills.length}</span></h3>
+            <h3>{t('只读能力', 'Read-only capabilities')} <span>{app.skills.length}</span></h3>
             <div className="integration-panel integration-skills">
-              {visibleSkills.map((skill) => (
+              {app.skills.map((skill) => (
                 <div className="integration-skill-row" key={skill.id}>
                   <Box size={17} />
-                  <div><strong>{skill.name}</strong><span>{skill.description}</span></div>
+                  <div><strong>{integrationCapabilityLabel(skill.id, t)}</strong><span>{skill.id}</span></div>
                 </div>
               ))}
-              {app.skills.length > 5 && (
-                <button type="button" className="integration-more-skills" onClick={() => setShowAllSkills((value) => !value)}>
-                  {showAllSkills ? 'Show less' : `${app.skills.length - 5} more`}
-                </button>
-              )}
             </div>
           </section>
         )}
 
         <section className="integration-detail-section">
-          <h3>Information</h3>
+          <h3>{t('信息', 'Information')}</h3>
           <dl className="integration-panel integration-information">
-            <div><dt>Capabilities</dt><dd>1 app{app.skills.length > 0 ? `, ${app.skills.length} skills` : ''}</dd></div>
-            <div><dt>Developer</dt><dd>{app.developer}</dd></div>
-            <div><dt>Category</dt><dd>{app.category === 'Code' ? 'Infrastructure' : app.category}</dd></div>
-            <div><dt>Website</dt><dd>{app.website}</dd></div>
-            <div><dt>Availability</dt><dd>{app.team ? 'Team' : 'Public'}</dd></div>
+            <div><dt>{t('开发者', 'Developer')}</dt><dd>{app.developer}</dd></div>
+            <div><dt>{t('分类', 'Category')}</dt><dd>{integrationCategoryLabel(app.category, t)}</dd></div>
+            <div><dt>{t('网站', 'Website')}</dt><dd>{app.website}</dd></div>
+            <div><dt>{t('可用性', 'Availability')}</dt><dd>{app.available ? t('只读连接', 'Read-only connection') : t('尚未接入', 'Coming soon')}</dd></div>
           </dl>
         </section>
       </div>

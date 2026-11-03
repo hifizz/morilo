@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useSettings } from '@/settings/SettingsProvider'
 
 const MIN_WIDTH = 200
 const MAX_WIDTH = 420
@@ -15,6 +16,7 @@ interface SidebarResizerProps {
 }
 
 export function SidebarResizer({ width, collapsed, onWidthChange, onCollapsedChange, onResizingChange }: SidebarResizerProps) {
+  const { t } = useSettings()
   const dragRef = useRef<{ startX: number; startWidth: number; collapsed: boolean } | null>(null)
 
   useEffect(() => () => {
@@ -75,13 +77,13 @@ export function SidebarResizer({ width, collapsed, onWidthChange, onCollapsedCha
     <div
       className="sidebar-resizer desktop-only"
       role="separator"
-      aria-label="调整会话栏宽度"
+      aria-label={t('调整会话栏宽度', 'Resize conversations sidebar')}
       aria-orientation="vertical"
       aria-valuemin={COLLAPSE_WIDTH}
       aria-valuemax={MAX_WIDTH}
       aria-valuenow={collapsed ? COLLAPSE_WIDTH : width}
       tabIndex={0}
-      title="拖动调整宽度，双击还原"
+      title={t('拖动调整宽度，双击还原', 'Drag to resize, double-click to reset')}
       onPointerDown={(event) => {
         if (event.button !== 0) return
         event.preventDefault()

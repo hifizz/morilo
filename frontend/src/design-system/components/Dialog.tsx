@@ -14,9 +14,10 @@ interface DialogProps {
   className?: string
   hideHeader?: boolean
   hideCloseButton?: boolean
+  closeLabel?: string
 }
 
-export function Dialog({ open, onOpenChange, title, description, children, className, hideHeader = false, hideCloseButton = false }: DialogProps) {
+export function Dialog({ open, onOpenChange, title, description, children, className, hideHeader = false, hideCloseButton = false, closeLabel = '关闭' }: DialogProps) {
   useDismissOnEscape(open, onOpenChange)
 
   return (
@@ -28,7 +29,7 @@ export function Dialog({ open, onOpenChange, title, description, children, class
             <>
               <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
               {description && <DialogPrimitive.Description className="sr-only">{description}</DialogPrimitive.Description>}
-              {!hideCloseButton && <DialogPrimitive.Close asChild><IconButton label="关闭" className="ds-dialog__floating-close"><X size={19} /></IconButton></DialogPrimitive.Close>}
+              {!hideCloseButton && <DialogPrimitive.Close asChild><IconButton label={closeLabel} className="ds-dialog__floating-close"><X size={19} /></IconButton></DialogPrimitive.Close>}
             </>
           ) : (
             <header className="ds-dialog__header">
@@ -36,7 +37,7 @@ export function Dialog({ open, onOpenChange, title, description, children, class
                 <DialogPrimitive.Title className="ds-dialog__title">{title}</DialogPrimitive.Title>
                 {description && <DialogPrimitive.Description className="ds-dialog__description">{description}</DialogPrimitive.Description>}
               </div>
-              {!hideCloseButton && <DialogPrimitive.Close asChild><IconButton label="关闭"><X size={19} /></IconButton></DialogPrimitive.Close>}
+              {!hideCloseButton && <DialogPrimitive.Close asChild><IconButton label={closeLabel}><X size={19} /></IconButton></DialogPrimitive.Close>}
             </header>
           )}
           {children}

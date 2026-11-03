@@ -2,6 +2,7 @@ import { Link, Mail, X } from 'lucide-react'
 import { AgentAvatar } from '@/components/AgentAvatar'
 import { Button, Dialog, IconButton } from '@/design-system'
 import type { AgentColor } from '@/types/chat'
+import { useSettings } from './SettingsProvider'
 
 interface ReferralDialogProps {
   onClose: () => void
@@ -15,20 +16,21 @@ const friends: { color: AgentColor; variant: number }[] = [
 ]
 
 export function ReferralDialog({ onClose, onNotify }: ReferralDialogProps) {
+  const { t } = useSettings()
   const copyLink = async () => {
     try { await navigator.clipboard.writeText('https://grok.bot/refer/zilin-demo') } catch { /* Clipboard may be unavailable in preview. */ }
-    onNotify('邀请链接已复制')
+    onNotify(t('邀请链接已复制', 'Referral link copied'))
   }
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title="Gift Grok Bot to a friend" hideHeader className="referral-dialog">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title={t('邀请好友使用 Grok Bot', 'Gift Grok Bot to a friend')} closeLabel={t('关闭', 'Close')} hideHeader className="referral-dialog">
       <div className="referral-friends" aria-hidden="true">{friends.map((friend, index) => <AgentAvatar key={index} color={friend.color} variant={friend.variant} size={58} />)}</div>
-      <h2>Gift Grok Bot to a friend</h2>
-      <p>Your friend's first 2 weeks are on us. Earn a free usage reset 7 days after their first payment. <button type="button" onClick={() => onNotify('邀请条款为演示内容')}>Terms apply.</button></p>
+      <h2>{t('邀请好友使用 Grok Bot', 'Gift Grok Bot to a friend')}</h2>
+      <p>{t('好友前 2 周免费使用。在其首次付款 7 天后，你可获得一次免费用量重置。', "Your friend's first 2 weeks are on us. Earn a free usage reset 7 days after their first payment.")} <button type="button" onClick={() => onNotify(t('邀请条款为演示内容', 'Referral terms are demo content'))}>{t('适用相关条款。', 'Terms apply.')}</button></p>
       <div className="referral-actions">
-        <IconButton label="分享到 X" onClick={() => onNotify('已打开 X 分享（演示）')}><X size={19} /></IconButton>
-        <IconButton label="邮件邀请" onClick={() => onNotify('已生成邮件邀请（演示）')}><Mail size={19} /></IconButton>
-        <Button size="lg" onClick={copyLink}><Link size={16} />Copy link</Button>
+        <IconButton label={t('分享到 X', 'Share on X')} onClick={() => onNotify(t('已打开 X 分享（演示）', 'Opened sharing on X (demo)'))}><X size={19} /></IconButton>
+        <IconButton label={t('邮件邀请', 'Invite by email')} onClick={() => onNotify(t('已生成邮件邀请（演示）', 'Email invitation created (demo)'))}><Mail size={19} /></IconButton>
+        <Button size="lg" onClick={copyLink}><Link size={16} />{t('复制链接', 'Copy link')}</Button>
       </div>
     </Dialog>
   )

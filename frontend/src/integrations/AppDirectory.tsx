@@ -1,21 +1,25 @@
 import { useMemo, useState } from 'react'
-import { ArrowUpRight, ChevronDown, ChevronRight, Search } from 'lucide-react'
-import { Button, Menu } from '@/design-system'
+import { ChevronDown, ChevronRight, Search } from 'lucide-react'
+import { Menu } from '@/design-system'
+import { useSettings } from '@/settings/SettingsProvider'
 import { integrationApps, moreCategories, primaryCategories } from './data'
 import { IntegrationAppRow } from './IntegrationAppRow'
 import { IntegrationIcon } from './IntegrationIcon'
-import type { IntegrationApp, IntegrationCategory } from './types'
+import { IntegrationFeedback, IntegrationSetup } from './IntegrationSetup'
+import { integrationCategoryLabel } from './presentation'
+import type { IntegrationApp, IntegrationCategory, IntegrationStore } from './types'
 
 type Category = 'All' | IntegrationCategory
 
 interface AppDirectoryProps {
-  connectedIds: string[]
+  store: IntegrationStore
   onOpenManage: () => void
   onOpenApp: (id: string) => void
-  onNotify: (message: string) => void
 }
 
-export function AppDirectory({ connectedIds, onOpenManage, onOpenApp, onNotify }: AppDirectoryProps) {
+export function AppDirectory({ store, onOpenManage, onOpenApp }: AppDirectoryProps) {
+  const { snapshot, t } = useSettings()
+  const connectedIds = store.connectedIds
   const [category, setCategory] = useState<Category>('All')
   const [query, setQuery] = useState('')
   const normalizedQuery = query.trim().toLowerCase()
@@ -38,7 +42,7 @@ export function AppDirectory({ connectedIds, onOpenManage, onOpenApp, onNotify }
     }
     const result = [{
       title: 'Recommended for you',
-      apps: integrationApps.filter((app) => app.recommended),
+      apps: integrationApps.filter((app) => app.available),
       preview: true,
     }]
     const categories: IntegrationCategory[] = [
@@ -60,15 +64,18 @@ export function AppDirectory({ connectedIds, onOpenManage, onOpenApp, onNotify }
   return (
     <div className="integration-directory">
       <div className="integration-directory__top">
-        <h2>Connect Apps</h2>
+        <h2>{t('连接应用', 'Connect Apps')}</h2>
         <button type="button" className="integration-manage-entry" onClick={onOpenManage}>
           <span className="integration-connected-stack" aria-hidden="true">
             {connectedApps.slice(0, 4).map((app) => <IntegrationIcon key={app.id} icon={app.icon} size={21} />)}
           </span>
-          <span>{connectedIds.length} connected</span>
+          <span>{t(`${connectedIds.length} 个已连接`, `${connectedIds.length} connected`)}</span>
           <ChevronRight size={15} />
         </button>
       </div>
+
+      <IntegrationSetup store={store} />
+      <IntegrationFeedback store={store} />
 
       <div className="integration-directory__tools">
         <div className={`integration-search ${normalizedQuery ? 'has-query' : ''}`}>
@@ -76,21 +83,17 @@ export function AppDirectory({ connectedIds, onOpenManage, onOpenApp, onNotify }
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search across apps and skills"
-            aria-label="Search across apps and skills"
+            spellCheck={snapshot?.preferences.spellcheck ?? true}
+            placeholder={t('搜索应用', 'Search apps')}
+            aria-label={t('搜索应用', 'Search apps')}
           />
-          {query && <button type="button" className="integration-search__clear" onClick={() => setQuery('')}>Clear</button>}
+          {query && <button type="button" className="integration-search__clear" onClick={() => setQuery('')}>{t('清除', 'Clear')}</button>}
         </div>
-        <Button variant="secondary" className="integration-template-button" onClick={() => onNotify('Bot templates 将在新窗口打开（演示）')}>
-          <span className="integration-template-mark" aria-hidden="true">◕</span>
-          Bot templates
-          <ArrowUpRight size={14} />
-        </Button>
       </div>
 
       {normalizedQuery ? (
-        <div className="integration-search-results" role="listbox" aria-label="应用搜索结果">
-          <span className="integration-search-results__label">Plugins</span>
+        <div className="integration-search-results" role="listbox" aria-label={t('应用搜索结果', 'App search results')}>
+          <span className="integration-search-results__label">{t('应用', 'Apps')}</span>
           {searchResults.map((app, index) => (
             <button
               type="button"
@@ -102,19 +105,20 @@ export function AppDirectory({ connectedIds, onOpenManage, onOpenApp, onNotify }
             >
               <IntegrationIcon icon={app.icon} size={28} />
               <span>{app.name}</span>
+              {!app.available && <span className="integration-coming-soon">{t('尚未接入', 'Coming soon')}</span>}
               <ChevronRight size={15} />
             </button>
           ))}
           {searchResults.length === 0 && (
             <div className="integration-empty">
-              <strong>No apps or skills found</strong>
-              <span>Try a different name or keyword.</span>
+              <strong>{t('未找到应用', 'No apps found')}</strong>
+              <span>{t('请尝试其他名称或关键词。', 'Try a different name or keyword.')}</span>
             </div>
           )}
         </div>
       ) : (
         <>
-          <div className="integration-categories" aria-label="应用分类">
+          <div className="integration-categories" aria-label={t('应用分类', 'App categories')}>
             {primaryCategories.map((item) => (
               <button
                 type="button"
@@ -123,19 +127,19 @@ export function AppDirectory({ connectedIds, onOpenManage, onOpenApp, onNotify }
                 aria-pressed={category === item}
                 onClick={() => setCategory(item)}
               >
-                {item}
+                {integrationCategoryLabel(item, t)}
               </button>
             ))}
             <Menu
-              label="更多应用分类"
+              label={t('更多应用分类', 'More app categories')}
               align="end"
               trigger={(
                 <button type="button" className={moreCategories.includes(category as IntegrationCategory) ? 'is-active' : ''}>
-                  {moreCategories.includes(category as IntegrationCategory) ? category : 'More'}
+                  {moreCategories.includes(category as IntegrationCategory) ? integrationCategoryLabel(category, t) : t('更多', 'More')}
                   <ChevronDown size={13} />
                 </button>
               )}
-              items={moreCategories.map((item) => ({ id: item, label: item, onSelect: () => setCategory(item) }))}
+              items={moreCategories.map((item) => ({ id: item, label: integrationCategoryLabel(item, t), onSelect: () => setCategory(item) }))}
             />
           </div>
 
@@ -143,9 +147,9 @@ export function AppDirectory({ connectedIds, onOpenManage, onOpenApp, onNotify }
             {sections.map((section) => (
               <section className="integration-section" key={section.title}>
                 <div className="integration-section__heading">
-                  <h3>{section.title}</h3>
+                  <h3>{integrationCategoryLabel(section.title, t)}</h3>
                   {section.preview && section.title !== 'Recommended for you' && section.apps.length > 2 && (
-                    <button type="button" onClick={() => setCategory(section.title as IntegrationCategory)}>View all</button>
+                    <button type="button" onClick={() => setCategory(section.title as IntegrationCategory)}>{t('查看全部', 'View all')}</button>
                   )}
                 </div>
                 <div className="integration-app-grid">

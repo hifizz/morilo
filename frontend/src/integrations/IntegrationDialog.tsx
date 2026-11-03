@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { Dialog, IconButton } from '@/design-system'
+import { useSettings } from '@/settings/SettingsProvider'
 import { AppDetails } from './AppDetails'
 import { AppDirectory } from './AppDirectory'
 import { integrationApps } from './data'
@@ -21,6 +22,7 @@ interface IntegrationDialogProps {
 }
 
 export function IntegrationDialog({ store, onClose }: IntegrationDialogProps) {
+  const { t } = useSettings()
   const [route, setRoute] = useState<IntegrationRoute>({ view: 'directory' })
   const [notice, setNotice] = useState('')
   const noticeTimer = useRef<number | undefined>(undefined)
@@ -36,19 +38,19 @@ export function IntegrationDialog({ store, onClose }: IntegrationDialogProps) {
   const selectedApp = route.view === 'app' ? integrationApps.find((app) => app.id === route.appId) : undefined
   const selectedSkill = route.view === 'skill' ? store.privateSkills.find((skill) => skill.id === route.skillId) : undefined
   const title = route.view === 'directory'
-    ? 'Connect Apps'
+    ? t('连接应用', 'Connect Apps')
     : route.view === 'manage'
-      ? 'Manage plugins and skills'
-      : selectedApp?.name ?? selectedSkill?.name ?? 'Integration'
+      ? t('管理连接与本地技能', 'Manage connections and local skills')
+      : selectedApp?.name ?? selectedSkill?.name ?? t('集成', 'Integration')
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title={title} hideHeader className="integration-dialog">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title={title} hideHeader hideCloseButton className="integration-dialog">
+      <IconButton label={t('关闭', 'Close')} className="ds-dialog__floating-close" onClick={onClose}><X size={19} /></IconButton>
       {route.view === 'directory' && (
         <AppDirectory
-          connectedIds={store.connectedIds}
+          store={store}
           onOpenManage={() => setRoute({ view: 'manage' })}
           onOpenApp={(appId) => setRoute({ view: 'app', appId, from: 'directory' })}
-          onNotify={notify}
         />
       )}
       {route.view === 'manage' && (
@@ -81,7 +83,7 @@ export function IntegrationDialog({ store, onClose }: IntegrationDialogProps) {
       <div className={`integration-notice ${notice ? 'is-visible' : ''}`} role="status" aria-live="polite">
         <Check size={15} />
         <span>{notice}</span>
-        <IconButton label="关闭通知" onClick={() => setNotice('')}><X size={14} /></IconButton>
+        <IconButton label={t('关闭通知', 'Dismiss notification')} onClick={() => setNotice('')}><X size={14} /></IconButton>
       </div>
     </Dialog>
   )

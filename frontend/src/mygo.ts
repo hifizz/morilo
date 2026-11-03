@@ -38,7 +38,82 @@ export interface ComputerView {
   viewOnly: boolean;
 }
 
+export interface IntegrationAuthLink {
+  url: string;
+  connectionId: string;
+}
+
+export interface IntegrationConnection {
+  id: string;
+  appId: string;
+  status: string;
+  label: string;
+}
+
+export interface IntegrationResult {
+  data: unknown;
+  successful: boolean;
+  error?: string;
+}
+
+export interface IntegrationState {
+  configured: boolean;
+  connections: IntegrationConnection[];
+}
+
+export interface IntegrationTool {
+  slug: string;
+  appId: string;
+  name: string;
+  description: string;
+  version: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface LocalProfile {
+  id: string;
+  name: string;
+  email: string;
+  memory: string;
+}
+
+export interface Preferences {
+  theme: string;
+  accent: string;
+  language: string;
+  spellcheck: boolean;
+  microphoneId: string;
+  timezone: string;
+}
+
+export interface SettingsSnapshot {
+  preferences: Preferences;
+  profiles: LocalProfile[];
+  activeProfileId: string;
+}
+
 // ---- Services ----
+
+export const Settings = {
+  createProfile(name: string, email: string): Promise<SettingsSnapshot> {
+    return call("Settings.CreateProfile", name, email);
+  },
+  get(): Promise<SettingsSnapshot> {
+    return call("Settings.Get");
+  },
+  importMemory(id: string, filename: string, content: string): Promise<SettingsSnapshot> {
+    return call("Settings.ImportMemory", id, filename, content);
+  },
+  selectProfile(id: string): Promise<SettingsSnapshot> {
+    return call("Settings.SelectProfile", id);
+  },
+  updatePreferences(p: Preferences): Promise<SettingsSnapshot> {
+    return call("Settings.UpdatePreferences", p);
+  },
+  updateProfile(id: string, name: string, email: string): Promise<SettingsSnapshot> {
+    return call("Settings.UpdateProfile", id, name, email);
+  },
+} as const;
 
 export const Computer = {
   connect(takeControl: boolean): Promise<ComputerView> {
@@ -49,25 +124,49 @@ export const Computer = {
   },
 } as const;
 
+export const Integrations = {
+  configureKey(apiKey: string): Promise<void> {
+    return call("Integrations.ConfigureKey", apiKey);
+  },
+  connect(profileID: string, appID: string): Promise<IntegrationAuthLink> {
+    return call("Integrations.Connect", profileID, appID);
+  },
+  disconnect(profileID: string, connectionID: string): Promise<void> {
+    return call("Integrations.Disconnect", profileID, connectionID);
+  },
+  openConnect(profileID: string, appID: string): Promise<IntegrationAuthLink> {
+    return call("Integrations.OpenConnect", profileID, appID);
+  },
+  run(profileID: string, slug: string, arguments_: Record<string, unknown>): Promise<IntegrationResult> {
+    return call("Integrations.Run", profileID, slug, arguments_);
+  },
+  status(profileID: string): Promise<IntegrationState> {
+    return call("Integrations.Status", profileID);
+  },
+  tools(profileID: string, appID: string): Promise<IntegrationTool[]> {
+    return call("Integrations.Tools", profileID, appID);
+  },
+} as const;
+
 /**
  * Chat is the bound service the frontend talks to. Each conversation owns
  * one pi subprocess in RPC mode, keeping the agent's context in memory.
  */
 export const Chat = {
   /** Reset drops the conversation's agent; the next Send starts a fresh one. */
-  reset(conversationID: string): Promise<void> {
-    return call("Chat.Reset", conversationID);
+  reset(profileID: string, conversationID: string): Promise<void> {
+    return call("Chat.Reset", profileID, conversationID);
   },
   /**
    * Send runs one prompt of a conversation, streaming its pieces to events.
    * Concurrent sends of one conversation run one after another.
    */
-  send(conversationID: string, text: string, events: Channel<ChatEvent>): Promise<void> {
-    return call("Chat.Send", conversationID, text, events);
+  send(profileID: string, conversationID: string, text: string, events: Channel<ChatEvent>): Promise<void> {
+    return call("Chat.Send", profileID, conversationID, text, events);
   },
   /** Stop aborts the conversation's running agent, if any. */
-  stop(conversationID: string): Promise<void> {
-    return call("Chat.Stop", conversationID);
+  stop(profileID: string, conversationID: string): Promise<void> {
+    return call("Chat.Stop", profileID, conversationID);
   },
 } as const;
 
@@ -77,11 +176,11 @@ export const Chat = {
  */
 export const Store = {
   /** Load returns the saved state, or "" on the first run. */
-  load(): Promise<string> {
-    return call("Store.Load");
+  load(profileID: string): Promise<string> {
+    return call("Store.Load", profileID);
   },
   /** Save writes the state atomically. */
-  save(state: string): Promise<void> {
-    return call("Store.Save", state);
+  save(profileID: string, state: string): Promise<void> {
+    return call("Store.Save", profileID, state);
   },
 } as const;

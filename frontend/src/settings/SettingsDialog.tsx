@@ -8,6 +8,7 @@ import { PermissionsSettings } from './PermissionsSettings'
 import { UpdatesSettings } from './UpdatesSettings'
 import { VaultSettings } from './VaultSettings'
 import type { SettingsSection } from './types'
+import { useSettings } from './SettingsProvider'
 import './settings.css'
 
 interface SettingsDialogProps {
@@ -17,27 +18,27 @@ interface SettingsDialogProps {
 }
 
 const navigation = [
-  { id: 'general', label: 'General', icon: Settings2 },
-  { id: 'computer', label: 'Computer', icon: Computer },
-  { id: 'permissions', label: 'Permissions', icon: ShieldCheck },
-  { id: 'vault', label: 'Vault', icon: SquareArrowOutUpRight },
-  { id: 'billing', label: 'Usage & Billing', icon: BarChart3 },
-  { id: 'updates', label: 'Updates', icon: CloudDownload },
+  { id: 'general', zh: '通用', en: 'General', icon: Settings2 },
+  { id: 'computer', zh: '电脑', en: 'Computer', icon: Computer },
+  { id: 'permissions', zh: '权限', en: 'Permissions', icon: ShieldCheck },
+  { id: 'vault', zh: '保险库', en: 'Vault', icon: SquareArrowOutUpRight },
+  { id: 'billing', zh: '用量与账单', en: 'Usage & Billing', icon: BarChart3 },
+  { id: 'updates', zh: '更新', en: 'Updates', icon: CloudDownload },
 ] as const
 
-const titles: Record<SettingsSection, string> = { general: 'General', computer: 'Computer', permissions: 'Permissions', vault: 'Vault', billing: 'Usage & Billing', updates: 'Updates' }
-
 export function SettingsDialog({ initialSection, onClose, onNotify }: SettingsDialogProps) {
+  const { t } = useSettings()
   const [section, setSection] = useState<SettingsSection>(initialSection)
   useEffect(() => setSection(initialSection), [initialSection])
+  const titles: Record<SettingsSection, string> = Object.fromEntries(navigation.map((n) => [n.id, t(n.zh, n.en)])) as Record<SettingsSection, string>
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title="Grok Bot Settings" hideHeader className="settings-dialog">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title={t('Grok Bot 设置', 'Grok Bot Settings')} closeLabel={t('关闭', 'Close')} hideHeader className="settings-dialog">
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="设置导航">
+        <nav className="settings-nav" aria-label={t('设置导航', 'Settings navigation')}>
           {navigation.map((item) => {
             const Icon = item.icon
-            return <button type="button" key={item.id} className={section === item.id ? 'is-active' : ''} aria-current={section === item.id ? 'page' : undefined} onClick={() => setSection(item.id)}><Icon size={17} /><span>{item.label}</span></button>
+            return <button type="button" key={item.id} className={section === item.id ? 'is-active' : ''} aria-current={section === item.id ? 'page' : undefined} onClick={() => setSection(item.id)}><Icon size={17} /><span>{t(item.zh, item.en)}</span></button>
           })}
         </nav>
         <main className="settings-content">
