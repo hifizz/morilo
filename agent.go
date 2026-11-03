@@ -34,11 +34,12 @@ type ChatEvent struct {
 type Chat struct {
 	mu       sync.Mutex
 	sessions map[string]*piSession
+	computer *Computer
 }
 
 // NewChat binds the service: `mygo.Bind(NewChat())`.
-func NewChat() *Chat {
-	return &Chat{sessions: map[string]*piSession{}}
+func NewChat(computer *Computer) *Chat {
+	return &Chat{sessions: map[string]*piSession{}, computer: computer}
 }
 
 // Send runs one prompt of a conversation, streaming its pieces to events.
@@ -83,7 +84,7 @@ func (c *Chat) session(conversationID string) (*piSession, error) {
 	if sess := c.sessions[conversationID]; sess != nil && sess.alive() {
 		return sess, nil
 	}
-	sess, err := startPi(conversationID)
+	sess, err := startPi(conversationID, c.computer)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,9 @@ type rpcResponse struct {
 // separated by ¶, which the app splits into bubbles.
 const chatStylePrompt = `你在一个即时通讯界面里和用户对话。默认把回复拆成多条简短的消息，每条一两句话，就像一个人连续发好几条消息那样；相邻两条消息之间用单独一个 ¶ 字符分隔，¶ 前后不用换行或空行，也不要把它放进代码块或引用里。只有当内容必须是整体时——比如一段代码、一份文档——才发单独一条。`
 
-func startPi(conversationID string) (*piSession, error) {
+const remoteComputerPrompt = `你的工具操作对象是所有 Bot 共用的远程 Linux 电脑，不是运行聊天程序的本机 Mac。使用 computer_exec、computer_read、computer_write 和 computer_desktop 完成操作。远程默认工作目录是 /data/home；每次命令的 shell 独立，需要切换目录时指定 cwd 或在同一条命令里 cd。桌面操作前先截图，按截图坐标操作。没有工具结果时不要声称操作已经完成。`
+
+func startPi(conversationID string, computer *Computer) (*piSession, error) {
 	bin, err := exec.LookPath("pi")
 	if err != nil {
 		home, _ := os.UserHomeDir()
@@ -138,15 +141,27 @@ func startPi(conversationID string) (*piSession, error) {
 		return nil, err
 	}
 	// --session-id resumes this conversation's earlier context on restart.
-	cmd := exec.Command(bin, "--mode", "rpc",
+	args := []string{"--mode", "rpc",
 		"--session-dir", sessions,
 		"--session-id", sessionID(conversationID),
 		"--append-system-prompt", chatStylePrompt,
-		"--no-extensions", "--no-mcp")
+		"--no-extensions", "--no-mcp"}
+	var endpoint computerEndpoint
+	if computer != nil && computer.backend != nil {
+		endpoint, err = computer.bridge()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args,
+			"--no-builtin-tools",
+			"--extension", endpoint.path,
+			"--append-system-prompt", remoteComputerPrompt)
+	}
+	cmd := exec.Command(bin, args...)
 	cmd.Dir = workdir
 	// Grokbot keeps its own pi agent directory: providers, credentials and
 	// settings stay apart from the user's global ~/.pi/agent.
-	cmd.Env = append(os.Environ(), "PI_CODING_AGENT_DIR="+agentDir)
+	cmd.Env = piEnv(agentDir, endpoint)
 	cmd.Stderr = log.Writer()
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -168,6 +183,23 @@ func startPi(conversationID string) (*piSession, error) {
 	}
 	go s.read(stdout)
 	return s, nil
+}
+
+func piEnv(agentDir string, endpoint computerEndpoint) []string {
+	env := make([]string, 0, len(os.Environ())+4)
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "INSTABOX_API_KEY=") {
+			continue
+		}
+		env = append(env, e)
+	}
+	env = append(env, "PI_CODING_AGENT_DIR="+agentDir)
+	if endpoint.url != "" {
+		env = append(env,
+			"GROKBOT_COMPUTER_URL="+endpoint.url,
+			"GROKBOT_COMPUTER_TOKEN="+endpoint.token)
+	}
+	return env
 }
 
 // piWorkdir is where the agent's tools run: ~/grokbot-workspace.

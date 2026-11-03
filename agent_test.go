@@ -9,7 +9,7 @@ import (
 // TestPiSessionRoundTrip drives one real prompt through a pi subprocess and
 // expects streamed text followed by settlement.
 func TestPiSessionRoundTrip(t *testing.T) {
-	sess, err := startPi("test")
+	sess, err := startPi("test", nil)
 	if err != nil {
 		t.Fatalf("startPi: %v", err)
 	}

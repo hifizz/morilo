@@ -9,7 +9,9 @@ import (
 )
 
 func main() {
-	mygo.Bind(NewChat())
+	computer := NewComputer(computerBackend())
+	mygo.Bind(computer)
+	mygo.Bind(NewChat(computer))
 	if store, err := NewStore(); err != nil {
 		log.Printf("store: %v (state will not persist)", err)
 	} else {

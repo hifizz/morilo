@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Check, ChevronRight, FileCode2, FileText, Monitor, Plus, Sparkles, X } from 'lucide-react'
+import { Check, ChevronRight, FileCode2, FileText, Plus, Sparkles, X } from 'lucide-react'
 import type { Agent, Conversation, LibraryFile } from '@/types/chat'
 import { AgentAvatar } from './AgentAvatar'
+import { ComputerPanel } from './ComputerPanel'
 import { Button, IconButton, SegmentedControl, TextField } from '@/design-system'
 
 type InspectorTab = 'details' | 'library' | 'computer'
@@ -22,14 +23,8 @@ export function InspectorPanel({ agent, conversation, files, mobile = false, onC
   const [routine, setRoutine] = useState('')
   const [routines, setRoutines] = useState<string[]>([])
   const [selectedFile, setSelectedFile] = useState(files[0]?.id)
-  const [computerState, setComputerState] = useState<'offline' | 'waking' | 'online'>('offline')
   const [label, setLabel] = useState('')
   const [editingLabel, setEditingLabel] = useState(false)
-
-  const wakeComputer = () => {
-    setComputerState('waking')
-    window.setTimeout(() => { setComputerState('online'); onNotify('演示电脑已连接') }, 1100)
-  }
 
   const activeFile = files.find((file) => file.id === selectedFile) ?? files[0]
 
@@ -118,18 +113,7 @@ export function InspectorPanel({ agent, conversation, files, mobile = false, onC
         {tab === 'computer' && (
           <section className="inspector-section computer-section">
             <h3>Computer</h3>
-            <div className={`computer-screen computer-screen--${computerState}`}>
-              {computerState === 'online' ? (
-                <div className="terminal-preview">
-                  <div className="terminal-top"><span /><span /><span /><small>agent — zsh</small></div>
-                  <code><b>➜</b> thread-chatbot git:(main)<br />runner status: <em>online</em><br />node: v22.16.0<br />docker: ready<br /><span className="terminal-cursor">_</span></code>
-                </div>
-              ) : (
-                <div className="computer-placeholder"><Monitor size={34} /><strong>{computerState === 'waking' ? 'Waking up…' : 'Computer is asleep'}</strong><p>{computerState === 'waking' ? '正在建立安全连接' : '唤醒后可查看演示终端'}</p></div>
-              )}
-            </div>
-            <Button className="computer-action" loading={computerState === 'waking'} disabled={computerState !== 'offline'} onClick={wakeComputer}>{computerState === 'offline' ? '唤醒电脑' : computerState === 'waking' ? '正在唤醒…' : '电脑已连接'}</Button>
-            <p className="computer-caption">{agent.name}’s screen</p>
+            <ComputerPanel label={agent.name} />
           </section>
         )}
       </div>

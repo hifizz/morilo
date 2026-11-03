@@ -23,7 +23,31 @@ export interface ChatEvent {
   failed?: boolean;
 }
 
+export interface ComputerStatus {
+  configured: boolean;
+  id?: string;
+  name?: string;
+  state: string;
+}
+
+export interface ComputerView {
+  id: string;
+  name: string;
+  state: string;
+  url: string;
+  viewOnly: boolean;
+}
+
 // ---- Services ----
+
+export const Computer = {
+  connect(takeControl: boolean): Promise<ComputerView> {
+    return call("Computer.Connect", takeControl);
+  },
+  status(): Promise<ComputerStatus> {
+    return call("Computer.Status");
+  },
+} as const;
 
 /**
  * Chat is the bound service the frontend talks to. Each conversation owns

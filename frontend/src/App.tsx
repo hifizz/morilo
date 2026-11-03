@@ -7,6 +7,7 @@ import type { BotContextAction } from '@/components/BotContextMenu'
 import { ChatPanel } from '@/components/ChatPanel'
 import { ConversationSearchDialog } from '@/components/ConversationSearchDialog'
 import { InspectorPanel } from '@/components/InspectorPanel'
+import { InspectorResizer } from '@/components/InspectorResizer'
 import { MobileDrawer } from '@/components/MobileDrawer'
 import { NewBotDialog, type NewBotInput } from '@/components/NewBotDialog'
 import { RenameBotDialog } from '@/components/RenameBotDialog'
@@ -31,6 +32,8 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(260)
   const [sidebarResizing, setSidebarResizing] = useState(false)
+  const [inspectorWidth, setInspectorWidth] = useState(420)
+  const [inspectorResizing, setInspectorResizing] = useState(false)
   const [inspectorVisible, setInspectorVisible] = useState(true)
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null)
   const [newBotOpen, setNewBotOpen] = useState(false)
@@ -280,11 +283,11 @@ export default function App() {
     notify('当前会话已清空')
   }
 
-  const shellStyle = { '--sidebar-width': `${collapsed ? 74 : sidebarWidth}px` } as CSSProperties
+  const shellStyle = { '--sidebar-width': `${collapsed ? 74 : sidebarWidth}px`, '--inspector-width': `${inspectorWidth}px` } as CSSProperties
 
   return (
     <div className="app-stage">
-      <div className={`app-shell ${collapsed ? 'is-collapsed' : ''} ${!inspectorVisible ? 'no-inspector' : ''} ${sidebarResizing ? 'is-resizing' : ''}`} style={shellStyle}>
+      <div className={`app-shell ${collapsed ? 'is-collapsed' : ''} ${!inspectorVisible ? 'no-inspector' : ''} ${sidebarResizing || inspectorResizing ? 'is-resizing' : ''}`} style={shellStyle}>
         <Sidebar
           agents={availableAgents}
           conversations={conversations}
@@ -321,6 +324,7 @@ export default function App() {
           aria-hidden={!inspectorVisible}
           inert={!inspectorVisible}
         >
+          <InspectorResizer width={inspectorWidth} sidebarWidth={collapsed ? 74 : sidebarWidth} onWidthChange={setInspectorWidth} onResizingChange={setInspectorResizing} />
           <InspectorPanel key={activeAgent.id} agent={activeAgent} conversation={activeConversation} files={libraryFiles} onClose={() => setInspectorVisible(false)} onNotify={notify} />
         </div>
       </div>
