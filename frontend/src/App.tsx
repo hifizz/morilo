@@ -22,6 +22,20 @@ import type { Agent, ChatMessage, Conversation } from '@/types/chat'
 
 type MobilePanel = 'sidebar' | 'inspector' | null
 
+const toolProgress: Record<string, string> = {
+  read: '正在查看文件…',
+  computer_read: '正在查看文件…',
+  write: '正在保存文件…',
+  edit: '正在修改文件…',
+  computer_write: '正在保存文件…',
+  grep: '正在查找内容…',
+  find: '正在查找文件…',
+  ls: '正在查看文件目录…',
+  bash: '正在执行任务…',
+  computer_exec: '正在执行任务…',
+  computer_desktop: '正在操作电脑…',
+}
+
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations)
   const [availableAgents, setAvailableAgents] = useState<Agent[]>(agents)
@@ -44,7 +58,7 @@ export default function App() {
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null)
   const integrationStore = useIntegrationStore()
   const [typingFor, setTypingFor] = useState<string | null>(null)
-  const [thoughts, setThoughts] = useState<Record<string, string>>({})
+  const [progress, setProgress] = useState<Record<string, string>>({})
   const [toast, setToast] = useState('')
   const toastTimer = useRef<number | undefined>(undefined)
   const replyTimer = useRef<number | undefined>(undefined)
@@ -160,12 +174,13 @@ export default function App() {
     const channel = new Channel<ChatEvent>((e) => {
       if (e.type === 'text' && e.delta) {
         appendAgentText(e.seg ?? 0, e.delta)
-      } else if (e.type === 'thinking' && e.delta) {
-        setThoughts((current) => ({ ...current, [targetId]: ((current[targetId] ?? '') + e.delta).slice(-4000) }))
+        setProgress((current) => ({ ...current, [targetId]: '正在回复…' }))
+      } else if (e.type === 'thinking') {
+        setProgress((current) => ({ ...current, [targetId]: '正在思考…' }))
       } else if (e.type === 'tool_start') {
-        pushEvent({ taskTitle: `${e.tool ?? 'tool'}${e.detail ? `：${e.detail}` : ''}` })
-      } else if (e.type === 'tool_end' && e.failed) {
-        pushEvent({ taskTitle: `${e.tool ?? 'tool'} 执行失败` })
+        setProgress((current) => ({ ...current, [targetId]: toolProgress[e.tool ?? ''] ?? '正在处理任务…' }))
+      } else if (e.type === 'tool_end') {
+        setProgress((current) => ({ ...current, [targetId]: e.failed ? '正在处理执行问题…' : '正在整理结果…' }))
       } else if (e.type === 'error') {
         pushEvent({ text: `出错：${e.detail || '未知错误'}` })
       }
@@ -177,7 +192,7 @@ export default function App() {
       })
       .finally(() => {
         setTypingFor(null)
-        setThoughts((current) => {
+        setProgress((current) => {
           const next = { ...current }
           delete next[targetId]
           return next
@@ -310,7 +325,7 @@ export default function App() {
           agent={activeAgent}
           conversation={activeConversation}
           typing={typingFor === activeId}
-          thought={thoughts[activeId]}
+          progress={progress[activeId]}
           onOpenSidebar={() => setMobilePanel('sidebar')}
           inspectorVisible={inspectorVisible}
           onToggleInspector={toggleInspector}

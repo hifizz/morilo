@@ -10,7 +10,7 @@ interface ChatPanelProps {
   agent: Agent
   conversation: Conversation
   typing: boolean
-  thought?: string
+  progress?: string
   onOpenSidebar: () => void
   inspectorVisible: boolean
   onToggleInspector: () => void
@@ -19,23 +19,18 @@ interface ChatPanelProps {
   onNotify: (message: string) => void
 }
 
-export function ChatPanel({ agent, conversation, typing, thought, onOpenSidebar, inspectorVisible, onToggleInspector, onSend, onClear, onNotify }: ChatPanelProps) {
+export function ChatPanel({ agent, conversation, typing, progress, onOpenSidebar, inspectorVisible, onToggleInspector, onSend, onClear, onNotify }: ChatPanelProps) {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const thoughtRef = useRef<HTMLDivElement>(null)
+  const visibleMessages = conversation.messages.filter((message) => message.sender !== 'event' || !message.taskTitle)
 
   useEffect(() => {
     const element = scrollRef.current
     if (element) element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
   }, [conversation.id, conversation.messages.length, typing])
 
-  useEffect(() => {
-    const element = thoughtRef.current
-    if (element) element.scrollTop = element.scrollHeight
-  }, [thought])
-
   const exportChat = () => {
-    const content = conversation.messages.map((message) => `${message.sender === 'user' ? 'Zilin' : message.sender === 'agent' ? agent.name : '系统'}\n${message.text}`).join('\n\n')
+    const content = visibleMessages.map((message) => `${message.sender === 'user' ? 'Zilin' : message.sender === 'agent' ? agent.name : '系统'}\n${message.text}`).join('\n\n')
     const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url
@@ -82,23 +77,21 @@ export function ChatPanel({ agent, conversation, typing, thought, onOpenSidebar,
 
       <div className="message-scroll" ref={scrollRef}>
         <div className="message-list">
-          {conversation.messages.length === 0 ? (
+          {visibleMessages.length === 0 ? (
             <div className="empty-chat">
               <AgentAvatar color={agent.color} variant={agent.variant} size={68} />
               <h1>和 {agent.name} 开始新对话</h1>
               <p>{agent.description}</p>
             </div>
-          ) : conversation.messages.map((message) => <MessageBubble key={message.id} message={message} onReply={setReplyTo} onNotify={onNotify} />)}
+          ) : visibleMessages.map((message) => <MessageBubble key={message.id} message={message} onReply={setReplyTo} onNotify={onNotify} />)}
         </div>
       </div>
 
       <div className="composer-wrap">
         {typing && (
-          <div className="agent-status" role="status" aria-label={`${agent.name} 正在思考`}>
+          <div className="agent-status" role="status" aria-label={`${agent.name} 正在处理任务`}>
             <AgentAvatar color={agent.color} variant={agent.variant} size={26} />
-            <div className="agent-status__thought" ref={thoughtRef}>
-              {thought ? thought : <span className="agent-status__placeholder">正在思考…</span>}
-            </div>
+            <div className="agent-status__text">{progress || '正在思考…'}</div>
           </div>
         )}
         <Composer

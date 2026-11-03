@@ -47,7 +47,7 @@ selftest（main.go）会等页面加载后：向真实输入框注入 prompt →
 
 1. **MyGo 化改造**：React 项目原样迁入 `frontend/`；MyGo WebView 模式承载；`Grokbot.app`+dmg 打包跑通。
 2. **Chat 服务（Go↔Pi↔前端）**：`Chat.Send` 带 `*mygo.Channel[ChatEvent]`，channel 生命周期=一次 run；每会话一个 `pi --mode rpc` 子进程保上下文；`Chat.Stop`（abort）/`Chat.Reset`（杀进程）已就绪。
-3. **流式渲染**：`text_delta` → agent 气泡；`thinking_delta` → 输入框上方「头像+实时思考」状态条（`.agent-status`，run 结束消失）；`tool_execution_*` → `sender:'event'` 事件行。
+3. **流式渲染**：`text_delta` → agent 气泡；`thinking_delta`/`tool_execution_*` 只更新输入框上方「头像+一句进度」状态条（`.agent-status`，run 结束消失）——工具执行事件不再写入 UI 聊天记录，界面不展示工具名/参数/原始结果或原始推理；Pi 自身会话存储不变，Agent 正常回复中的代码保留。`error`/发送失败仍是 `sender:'event'` 持久事件行。历史 `taskTitle` 事件行在渲染与导出时过滤隐藏，日期等其它事件行保留。
 4. **多消息气泡（Grok 式连发）**：两层机制——pi 的每个 assistant `message_start` 为一个气泡段（`ChatEvent.seg`）；`--append-system-prompt` 约定多条短消息用 `¶` 分隔，前端按 `¶` 实时切泡。已截图验收。
    - 每条 agent 消息的工具条（表情/引用/更多，`MessageToolbar`）显示在气泡**右侧**垂直居中而非下方：`.message-row--agent` 为 `flex-direction: row`，平时 `opacity:0`、hover 显示。已截图验收。
 5. **会话持久化**：`Store`（load/save，600ms 防抖）写 `~/Library/Application Support/dev.grokbot.app/state.json`；pi 用 `--session-dir` + `--session-id <convId>`，重启续上下文。
