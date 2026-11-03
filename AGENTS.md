@@ -65,6 +65,7 @@ selftest（main.go）会等页面加载后：向真实输入框注入 prompt →
 
 ## 关键行为约定
 
+- 圆角形状通过 `--ds-corner-shape: squircle` 与全局基础选择器统一设置，常规容器半径由 `--ds-radius-*` token 与 Tailwind 圆角映射统一控制；圆形控件保留 `50%`/round 半径。按用户选择仅使用原生 CSS：支持的浏览器显示 squircle，不支持的引擎保留普通圆角，不引入兼容库；本机 macOS 26.6 的 WKWebView 实测尚不支持。
 - Composio hosted connect 链接仅有效 10 分钟。先准备好 Vercel Token，再生成并打开新链接；超时后重新生成链接，不要直接认定 Token 无效或要求重建。`EXPIRED` 也可能表示连接流程超时，是否可用须以 `ACTIVE` 和真实只读调用为准。
 - 同一工作目录的多个 `mygo dev` 共用 `.mygo/dev` 构建产物，不要并行启动。selftest 的临时 userData 只隔离业务数据，不隔离构建目录；优先复用当前开发诊断入口，必须运行 selftest 时先协调现有实例或使用隔离工作目录。
 - 真实聊天验收期间保持文件和运行实例稳定；页面重载会清空内存中的验收观察状态。遇到等待或钥匙串问题，先核对 ready.json 的当前 PID，不要用旧进程的调用栈推断当前实例仍在等待系统授权。

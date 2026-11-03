@@ -81,13 +81,15 @@
   --ds-space-10: 40px;
 
   /* Shape: compact desktop controls, softer conversational containers. */
-  --ds-radius-xs: 6px;
-  --ds-radius-sm: 8px;
-  --ds-radius-md: 10px;
-  --ds-radius-lg: 12px;
-  --ds-radius-xl: 14px;
-  --ds-radius-message: 19px;
-  --ds-radius-window: 25px;
+  --ds-corner-shape: squircle;
+  --ds-radius-xs: 5px;
+  --ds-radius-sm: 6px;
+  --ds-radius-md: 8px;
+  --ds-radius-lg: 10px;
+  --ds-radius-xl: 12px;
+  --ds-radius-2xl: 16px;
+  --ds-radius-message: var(--ds-radius-2xl);
+  --ds-radius-window: 20px;
   --ds-radius-round: 999px;
 
   /* Type and density. */
