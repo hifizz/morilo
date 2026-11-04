@@ -15,8 +15,9 @@ import { Sidebar } from '@/components/Sidebar'
 import { agents, initialConversations, libraryFiles } from '@/data/demo'
 import { IntegrationDialog } from '@/integrations/IntegrationDialog'
 import { useIntegrationStore } from '@/integrations/useIntegrationStore'
-import { ReferralDialog } from '@/settings/ReferralDialog'
 import { SettingsDialog } from '@/settings/SettingsDialog'
+import { Onboarding } from '@/settings/Onboarding'
+import { useConnections } from '@/settings/ConnectionProvider'
 import { useSettings } from '@/settings/SettingsProvider'
 import { LocalProfilePicker } from '@/components/LocalProfilePicker'
 import { palette } from '@/components/AgentAvatar'
@@ -24,6 +25,22 @@ import type { SettingsSection } from '@/settings/types'
 import type { Agent, ChatMessage, Conversation } from '@/types/chat'
 
 type MobilePanel = 'sidebar' | 'inspector' | null
+
+// A fresh native install starts with one clean bot and one empty chat; the
+// browser preview keeps the demo seed data.
+function freshSeed(t: (zh: string, en: string) => string): { agent: Agent; conversation: Conversation } {
+  return {
+    agent: {
+      id: 'default',
+      name: 'Morilo',
+      color: 'white',
+      role: t('AI 工作伙伴', 'AI companion'),
+      description: t('使用你配置的模型与工作环境。', 'Uses your model and chosen work environment.'),
+      capabilities: [],
+    },
+    conversation: { id: 'default', agentId: 'default', title: 'Morilo', preview: '', time: '', messages: [], tasks: [] },
+  }
+}
 
 const toolProgress: Record<string, [string, string]> = {
   read: ['正在查看文件…', 'Reading file…'],
@@ -44,18 +61,41 @@ export default function App() {
   if (loading) return <div className="app-loading" aria-busy="true" aria-label={t('正在读取设置', 'Loading settings')} />
   if (!snapshot) return <div className="app-loading"><p>{error || t('设置读取失败', 'Could not load settings')}</p><button type="button" onClick={retry}>{t('重试', 'Retry')}</button></div>
   if (!profile) return <LocalProfilePicker />
-  return <ConversationApp key={profile.id} profileID={profile.id} />
+  return <OnboardingGate key={profile.id} profileID={profile.id} />
+}
+
+// OnboardingGate shows first-run setup on native until FinishOnboarding (or a
+// valid legacy configuration) completes it. Browser keeps the demo preview;
+// a dev-only ?onboarding flag previews the flow visually.
+function OnboardingGate({ profileID }: { profileID: string }) {
+  const { snapshot, loading, error, refresh } = useConnections()
+  if (isMyGo()) {
+    if (loading) return <div className="app-loading" aria-busy="true" aria-label="Loading" />
+    if (!snapshot) {
+      return (
+        <div className="app-loading">
+          <p role="alert">{error || 'Could not load connection settings'}</p>
+          <button type="button" onClick={() => void refresh()}>Retry</button>
+        </div>
+      )
+    }
+    if (!snapshot.onboardingComplete) return <Onboarding />
+  } else if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('onboarding')) {
+    return <Onboarding />
+  }
+  return <ConversationApp profileID={profileID} />
 }
 
 function ConversationApp({ profileID }: { profileID: string }) {
   const { snapshot, t } = useSettings()
   const isLegacyProfile = snapshot?.profiles[0]?.id === profileID
+  const seed = useMemo(() => freshSeed(t), [t])
   const [conversations, setConversations] = useState<Conversation[]>(() =>
-    isLegacyProfile ? initialConversations : [{ ...initialConversations[0], messages: [], tasks: [], preview: '' }],
+    isMyGo() ? [seed.conversation] : isLegacyProfile ? initialConversations : [{ ...initialConversations[0], messages: [], tasks: [], preview: '' }],
   )
-  const [availableAgents, setAvailableAgents] = useState<Agent[]>(agents)
+  const [availableAgents, setAvailableAgents] = useState<Agent[]>(() => (isMyGo() ? [seed.agent] : agents))
   const [activeId, setActiveId] = useState(() => {
-    if (!isLegacyProfile) return 'default'
+    if (isMyGo() || !isLegacyProfile) return 'default'
     const hash = window.location.hash.slice(1)
     return initialConversations.some((item) => item.id === hash) ? hash : 'xresearcher'
   })
@@ -70,7 +110,6 @@ function ConversationApp({ profileID }: { profileID: string }) {
   const [renameId, setRenameId] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [integrationsOpen, setIntegrationsOpen] = useState(false)
-  const [referralOpen, setReferralOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null)
   const integrationStore = useIntegrationStore(integrationsOpen)
   const [typingFor, setTypingFor] = useState<string | null>(null)
@@ -129,6 +168,8 @@ function ConversationApp({ profileID }: { profileID: string }) {
           if (!Array.isArray(saved.conversations) || !saved.conversations.length) throw new Error('Invalid saved conversations')
           nextConversations = saved.conversations
           if (saved.agents?.length) nextAgents = saved.agents
+          const hash = window.location.hash.slice(1)
+          setActiveId(nextConversations.some((item) => item.id === hash) ? hash : nextConversations[0].id)
         } catch (err) { /* corrupted state: keep the demo data */ throw err }
       }
       latestState.current = JSON.stringify({ conversations: nextConversations, agents: nextAgents })
@@ -278,11 +319,6 @@ function ConversationApp({ profileID }: { profileID: string }) {
     setIntegrationsOpen(true)
   }
 
-  const openReferral = () => {
-    setMobilePanel(null)
-    setReferralOpen(true)
-  }
-
   const createBot = (input: NewBotInput) => {
     const agentId = `custom-bot-${Date.now()}`
     const agent: Agent = {
@@ -393,7 +429,6 @@ function ConversationApp({ profileID }: { profileID: string }) {
           onNew={() => setNewBotOpen(true)}
           onSearch={() => setSearchOpen(true)}
           onOpenIntegrations={openIntegrations}
-          onOpenReferral={openReferral}
           width={sidebarWidth}
           onWidthChange={setSidebarWidth}
           onResizingChange={setSidebarResizing}
@@ -420,24 +455,23 @@ function ConversationApp({ profileID }: { profileID: string }) {
           inert={!inspectorVisible}
         >
           <InspectorResizer width={inspectorWidth} sidebarWidth={collapsed ? 74 : sidebarWidth} onWidthChange={setInspectorWidth} onResizingChange={setInspectorResizing} />
-          <InspectorPanel key={activeAgent.id} agent={activeAgent} conversation={activeConversation} files={libraryFiles} onClose={() => setInspectorVisible(false)} onNotify={notify} />
+          <InspectorPanel key={activeAgent.id} agent={activeAgent} conversation={activeConversation} files={isMyGo() ? [] : libraryFiles} onClose={() => setInspectorVisible(false)} onNotify={notify} />
         </div>
       </div>
 
       {mobilePanel === 'sidebar' && (
         <MobileDrawer side="left" label={t('会话列表', 'Conversations')} onClose={() => setMobilePanel(null)}>
-          <Sidebar mobile agents={availableAgents} conversations={conversations} activeId={activeId} collapsed={false} onCollapse={() => setMobilePanel(null)} onSelect={selectConversation} onNew={() => { setMobilePanel(null); setNewBotOpen(true) }} onSearch={() => { setMobilePanel(null); setSearchOpen(true) }} onOpenIntegrations={openIntegrations} onOpenReferral={openReferral} onCloseMobile={() => setMobilePanel(null)} onOpenSettings={openSettings} onConversationAction={handleConversationAction} onNotify={notify} />
+          <Sidebar mobile agents={availableAgents} conversations={conversations} activeId={activeId} collapsed={false} onCollapse={() => setMobilePanel(null)} onSelect={selectConversation} onNew={() => { setMobilePanel(null); setNewBotOpen(true) }} onSearch={() => { setMobilePanel(null); setSearchOpen(true) }} onOpenIntegrations={openIntegrations} onCloseMobile={() => setMobilePanel(null)} onOpenSettings={openSettings} onConversationAction={handleConversationAction} onNotify={notify} />
         </MobileDrawer>
       )}
       {mobilePanel === 'inspector' && (
         <MobileDrawer side="right" label={t('Agent 详情', 'Agent details')} onClose={() => setMobilePanel(null)}>
-          <InspectorPanel key={activeAgent.id} mobile agent={activeAgent} conversation={activeConversation} files={libraryFiles} onClose={() => setMobilePanel(null)} onNotify={notify} />
+          <InspectorPanel key={activeAgent.id} mobile agent={activeAgent} conversation={activeConversation} files={isMyGo() ? [] : libraryFiles} onClose={() => setMobilePanel(null)} onNotify={notify} />
         </MobileDrawer>
       )}
       {newBotOpen && <NewBotDialog onCreate={createBot} onClose={() => setNewBotOpen(false)} />}
       {searchOpen && <ConversationSearchDialog agents={availableAgents} conversations={conversations} activeId={activeId} onSelect={selectConversation} onClose={() => setSearchOpen(false)} />}
       {integrationsOpen && <IntegrationDialog store={integrationStore} onClose={() => setIntegrationsOpen(false)} />}
-      {referralOpen && <ReferralDialog onClose={() => setReferralOpen(false)} onNotify={notify} />}
       {renameConversation && <RenameBotDialog key={renameConversation.id} initialName={renameConversation.title} onRename={renameBot} onClose={() => setRenameId(null)} />}
       {settingsSection && <SettingsDialog initialSection={settingsSection} onClose={() => setSettingsSection(null)} onNotify={notify} />}
       <div className={`toast ${toast ? 'is-visible' : ''}`} role="status" aria-live="polite">{toast}</div>

@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react'
-import { BarChart3, CloudDownload, Computer, Settings2, ShieldCheck, SquareArrowOutUpRight } from 'lucide-react'
+import { useState } from 'react'
+import { CloudDownload, Computer, Cpu, Settings2 } from 'lucide-react'
 import { Dialog } from '@/design-system'
-import { BillingSettings } from './BillingSettings'
 import { ComputerSettings } from './ComputerSettings'
 import { GeneralSettings } from './GeneralSettings'
-import { PermissionsSettings } from './PermissionsSettings'
+import { ModelSettings } from './ModelSettings'
 import { UpdatesSettings } from './UpdatesSettings'
-import { VaultSettings } from './VaultSettings'
 import type { SettingsSection } from './types'
 import { useSettings } from './SettingsProvider'
 import './settings.css'
@@ -19,17 +17,16 @@ interface SettingsDialogProps {
 
 const navigation = [
   { id: 'general', zh: '通用', en: 'General', icon: Settings2 },
+  { id: 'model', zh: '模型', en: 'Model', icon: Cpu },
   { id: 'computer', zh: '电脑', en: 'Computer', icon: Computer },
-  { id: 'permissions', zh: '权限', en: 'Permissions', icon: ShieldCheck },
-  { id: 'vault', zh: '保险库', en: 'Vault', icon: SquareArrowOutUpRight },
-  { id: 'billing', zh: '用量与账单', en: 'Usage & Billing', icon: BarChart3 },
-  { id: 'updates', zh: '更新', en: 'Updates', icon: CloudDownload },
+  { id: 'updates', zh: '关于与下载', en: 'About & downloads', icon: CloudDownload },
 ] as const
 
 export function SettingsDialog({ initialSection, onClose, onNotify }: SettingsDialogProps) {
   const { t } = useSettings()
   const [section, setSection] = useState<SettingsSection>(initialSection)
-  useEffect(() => setSection(initialSection), [initialSection])
+  const [prevInitial, setPrevInitial] = useState(initialSection)
+  if (prevInitial !== initialSection) { setPrevInitial(initialSection); setSection(initialSection) }
   const titles: Record<SettingsSection, string> = Object.fromEntries(navigation.map((n) => [n.id, t(n.zh, n.en)])) as Record<SettingsSection, string>
 
   return (
@@ -42,13 +39,11 @@ export function SettingsDialog({ initialSection, onClose, onNotify }: SettingsDi
           })}
         </nav>
         <main className="settings-content">
-          <header className="settings-content__header"><h2>{titles[section]}</h2>{section === 'vault' && <span className="settings-header-spacer" />}</header>
+          <header className="settings-content__header"><h2>{titles[section]}</h2></header>
           {section === 'general' && <GeneralSettings onNotify={onNotify} />}
-          {section === 'computer' && <ComputerSettings onNotify={onNotify} />}
-          {section === 'permissions' && <PermissionsSettings onNotify={onNotify} />}
-          {section === 'vault' && <VaultSettings onNotify={onNotify} />}
-          {section === 'billing' && <BillingSettings onNotify={onNotify} />}
-          {section === 'updates' && <UpdatesSettings onNotify={onNotify} />}
+          {section === 'model' && <ModelSettings />}
+          {section === 'computer' && <ComputerSettings />}
+          {section === 'updates' && <UpdatesSettings />}
         </main>
       </div>
     </Dialog>

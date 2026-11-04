@@ -3,14 +3,112 @@ package computer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 )
+
+func TestInstaboxMachinePages(t *testing.T) {
+	for _, loop := range []bool{false, true} {
+		t.Run(map[bool]string{false: "all pages", true: "cursor loop"}[loop], func(t *testing.T) {
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /v1/machines", func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("cursor") == "" {
+					writeBody(t, w, map[string]any{"machines": []Info{{ID: "one"}}, "nextCursor": "page-2"})
+				} else {
+					var cursor any
+					if loop {
+						cursor = "page-2"
+					}
+					writeBody(t, w, map[string]any{"machines": []Info{{ID: "two"}}, "nextCursor": cursor})
+				}
+			})
+			items, err := fakeInstabox(t, "private-key", mux).Machines(context.Background())
+			if loop {
+				if err == nil {
+					t.Fatal("repeated cursor must fail")
+				}
+			} else if err != nil || len(items) != 2 || items[0].ID != "one" || items[1].ID != "two" {
+				t.Fatalf("pages: %+v, %v", items, err)
+			}
+		})
+	}
+}
+
+func TestInstaboxRedirectKeepsKeyPrivate(t *testing.T) {
+	var targetCalls atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetCalls.Add(1)
+	}))
+	defer target.Close()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/machines", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+	})
+	_, err := fakeInstabox(t, "private-key", mux).Machines(context.Background())
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusTemporaryRedirect || targetCalls.Load() != 0 {
+		t.Fatalf("redirect must be refused without contacting target: %v", err)
+	}
+}
+
+func TestInstaboxCreationContract(t *testing.T) {
+	var posts int
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/machines", func(w http.ResponseWriter, r *http.Request) {
+		posts++
+		if r.Header.Get("Idempotency-Key") != "same-request" {
+			t.Error("idempotency key was not forwarded")
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]any{"name": "my-computer", "templateId": "agent-browser", "vault": false, "secrets": []any{}, "envSecrets": []any{}}
+		if !reflect.DeepEqual(body, want) {
+			t.Errorf("unexpected machine request: %#v", body)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		writeBody(t, w, map[string]any{"id": "op1", "machineId": "m1", "state": "queued"})
+	})
+	mux.HandleFunc("GET /v1/operations/op1", func(w http.ResponseWriter, r *http.Request) {
+		writeBody(t, w, map[string]any{"id": "op1", "machineId": "m1", "state": "succeeded"})
+	})
+	box := fakeInstabox(t, "private-key", mux)
+	ctx := context.Background()
+	for range 2 {
+		op, err := box.CreateMachine(ctx, "my-computer", "same-request")
+		if err != nil || op.ID != "op1" || op.MachineID != "m1" {
+			t.Fatalf("create: %+v, %v", op, err)
+		}
+	}
+	op, err := box.Operation(ctx, "op1")
+	if err != nil || op.State != "succeeded" {
+		t.Fatalf("operation: %+v, %v", op, err)
+	}
+	for _, name := range []string{"", "-start", "UPPER", "has space", strings.Repeat("a", 64)} {
+		if _, err := box.CreateMachine(ctx, name, "same-request"); err == nil {
+			t.Errorf("invalid name accepted: %q", name)
+		}
+	}
+	if _, err := box.CreateMachine(ctx, "my-computer", ""); err == nil {
+		t.Error("empty idempotency key accepted")
+	}
+	if posts != 2 {
+		t.Errorf("invalid requests reached server: %d", posts)
+	}
+	for _, raw := range []string{`{}`, `{"id":"x","state":"unknown"}`, `not-json`} {
+		if _, err := decodeOperation([]byte(raw)); err == nil {
+			t.Errorf("invalid operation accepted: %s", raw)
+		}
+	}
+}
 
 func fakeInstabox(t *testing.T, key string, mux *http.ServeMux) *Instabox {
 	t.Helper()
@@ -73,7 +171,7 @@ func TestInstaboxWake(t *testing.T) {
 				if r.Header.Get("Idempotency-Key") != "" {
 					idem.Add(1)
 				}
-				op := operation{ID: "op1", State: tc.opStates[0]}
+				op := Operation{ID: "op1", State: tc.opStates[0]}
 				op.Error.Message = tc.opMessage
 				writeBody(t, w, op)
 			})
@@ -83,7 +181,7 @@ func TestInstaboxWake(t *testing.T) {
 					state = tc.opStates[polls]
 				}
 				polls++
-				op := operation{ID: "op1", State: state}
+				op := Operation{ID: "op1", State: state}
 				op.Error.Message = tc.opMessage
 				writeBody(t, w, op)
 			})

@@ -27,3 +27,5 @@ build/
 *.njsproj
 *.sln
 *.sw?
+/resources/darwin-arm64/runtime/
+/resources/darwin-amd64/runtime/

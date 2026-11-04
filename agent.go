@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +37,7 @@ type Chat struct {
 	computer     *Computer
 	settings     *Settings
 	integrations *Integrations
+	connections  *Connections // assigned in main; may be nil in tests
 }
 
 // NewChat binds the service: `mygo.Bind(NewChat())`.
@@ -48,6 +48,12 @@ func NewChat(computer *Computer, settings *Settings) *Chat {
 // Send runs one prompt of a conversation, streaming its pieces to events.
 // Concurrent sends of one conversation run one after another.
 func (c *Chat) Send(ctx context.Context, profileID, conversationID, text string, events *mygo.Channel[ChatEvent]) error {
+	if c.connections != nil {
+		if !c.connections.cfgMu.TryRLock() {
+			return errors.New("connections are being updated; try again shortly")
+		}
+		defer c.connections.cfgMu.RUnlock()
+	}
 	if c.settings != nil {
 		var err error
 		text, err = c.settings.contextMessage(profileID, text, time.Now())
@@ -102,20 +108,59 @@ func (c *Chat) session(profileID, conversationID string) (*piSession, error) {
 	if sess := c.sessions[key]; sess != nil && sess.alive() {
 		return sess, nil
 	}
-	var apps []integrationEndpoint
-	if c.integrations != nil {
-		endpoint, err := c.integrations.bridge(profileID)
+	var sess *piSession
+	var err error
+	if c.connections != nil {
+		var plan launchPlan
+		plan, err = c.connections.launchPlan()
 		if err != nil {
 			return nil, err
 		}
-		apps = append(apps, endpoint)
+		var managed *managedLaunch
+		if plan.managed != nil {
+			managed = &managedLaunch{config: *plan.managed, key: plan.key}
+		}
+		var apps []integrationEndpoint
+		if plan.mode != "chat" && c.integrations != nil {
+			endpoint, berr := c.integrations.bridge(profileID)
+			if berr != nil {
+				return nil, berr
+			}
+			apps = append(apps, endpoint)
+		}
+		sess, err = launchPi(piLaunchOptions{
+			conversationID: c.logicalID(profileID, conversationID),
+			computer:       c.computer, apps: apps,
+			mode: plan.mode, managed: managed,
+		})
+	} else {
+		var apps []integrationEndpoint
+		if c.integrations != nil {
+			endpoint, berr := c.integrations.bridge(profileID)
+			if berr != nil {
+				return nil, berr
+			}
+			apps = append(apps, endpoint)
+		}
+		sess, err = startPi(c.logicalID(profileID, conversationID), c.computer, apps...)
 	}
-	sess, err := startPi(c.logicalID(profileID, conversationID), c.computer, apps...)
 	if err != nil {
 		return nil, err
 	}
 	c.sessions[key] = sess
 	return sess, nil
+}
+
+// resetAll drops every cached pi session; called while the configuration
+// write gate is held after a committed change.
+func (c *Chat) resetAll() {
+	c.mu.Lock()
+	sessions := c.sessions
+	c.sessions = map[string]*piSession{}
+	c.mu.Unlock()
+	for _, sess := range sessions {
+		sess.kill()
+	}
 }
 
 // piSession is one `pi --mode rpc` subprocess. It reads JSONL records from
@@ -124,6 +169,8 @@ func (c *Chat) session(profileID, conversationID string) (*piSession, error) {
 type piSession struct {
 	cmd   *exec.Cmd
 	stdin *bufio.Writer
+
+	redact func(string) string // scrubs the managed key from surfaced errors
 
 	writeMu sync.Mutex // one writer on stdin
 	runMu   sync.Mutex // one active run
@@ -148,12 +195,26 @@ const chatStylePrompt = `你在一个即时通讯界面里和用户对话。默�
 
 const remoteComputerPrompt = `你的工具操作对象是所有 Bot 共用的远程 Linux 电脑，不是运行聊天程序的本机 Mac。使用 computer_exec、computer_read、computer_write 和 computer_desktop 完成操作。远程默认工作目录是 /data/home；每次命令的 shell 独立，需要切换目录时指定 cwd 或在同一条命令里 cd。桌面操作前先截图，按截图坐标操作。没有工具结果时不要声称操作已经完成。`
 
+// managedLaunch selects a user-configured model connection for this launch.
+// The key reaches pi only through its environment, never files or argv.
+type managedLaunch struct {
+	config ModelConnection
+	key    string
+}
+
+type piLaunchOptions struct {
+	conversationID string
+	computer       *Computer
+	apps           []integrationEndpoint
+	mode           string // "", "chat", "local", "remote"; "" keeps legacy behavior
+	managed        *managedLaunch
+}
+
 func startPi(conversationID string, computer *Computer, apps ...integrationEndpoint) (*piSession, error) {
-	bin, err := exec.LookPath("pi")
-	if err != nil {
-		home, _ := os.UserHomeDir()
-		bin = filepath.Join(home, ".local", "bin", "pi")
-	}
+	return launchPi(piLaunchOptions{conversationID: conversationID, computer: computer, apps: apps})
+}
+
+func launchPi(o piLaunchOptions) (*piSession, error) {
 	workdir, err := piWorkdir()
 	if err != nil {
 		return nil, err
@@ -169,12 +230,20 @@ func startPi(conversationID string, computer *Computer, apps ...integrationEndpo
 	// --session-id resumes this conversation's earlier context on restart.
 	args := []string{"--mode", "rpc",
 		"--session-dir", sessions,
-		"--session-id", sessionID(conversationID),
+		"--session-id", sessionID(o.conversationID),
 		"--append-system-prompt", chatStylePrompt,
 		"--no-extensions", "--no-mcp"}
+	mode := o.mode
 	var endpoint computerEndpoint
-	if computer != nil && computer.backend != nil {
-		endpoint, err = computer.bridge()
+	remote := mode == "remote" || (mode == "" && o.computer != nil && o.computer.getBackend() != nil)
+	switch {
+	case mode == "chat":
+		args = append(args, "--no-tools")
+	case remote:
+		if o.computer == nil || o.computer.getBackend() == nil {
+			return nil, errors.New("remote mode requires a connected machine; open Settings → Computer")
+		}
+		endpoint, err = o.computer.bridge()
 		if err != nil {
 			return nil, err
 		}
@@ -183,18 +252,81 @@ func startPi(conversationID string, computer *Computer, apps ...integrationEndpo
 			"--extension", endpoint.path,
 			"--append-system-prompt", remoteComputerPrompt)
 	}
-	for _, endpoint := range apps {
+	for _, endpoint := range o.apps {
+		if mode == "chat" {
+			continue // chat mode carries no integration extensions
+		}
 		args = append(args, "--extension", endpoint.path)
 	}
-	cmd := exec.Command(bin, args...)
+	extraEnv := []string(nil)
+	if o.managed != nil {
+		managedDir, merr := managedAgentDir(agentDir, o.managed.config)
+		if merr != nil {
+			return nil, merr
+		}
+		agentDir = managedDir
+		args = append(args, "--provider", managedProviderID, "--model", o.managed.config.ModelID)
+		if o.managed.key != "" {
+			extraEnv = append(extraEnv, modelKeyEnvironment+"="+o.managed.key)
+		}
+	}
+	cmd, err := piCommand(args...)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Dir = workdir
 	// Morilo keeps its own pi agent directory: providers, credentials and
 	// settings stay apart from the user's global ~/.pi/agent.
-	cmd.Env = piEnv(agentDir, endpoint)
-	for _, endpoint := range apps {
-		cmd.Env = append(cmd.Env, "MORILO_APPS_URL="+endpoint.url, "MORILO_APPS_TOKEN="+endpoint.token)
+	cmd.Env = append(piEnv(agentDir, endpoint), extraEnv...)
+	if mode != "chat" {
+		for _, endpoint := range o.apps {
+			cmd.Env = append(cmd.Env, "MORILO_APPS_URL="+endpoint.url, "MORILO_APPS_TOKEN="+endpoint.token)
+		}
 	}
-	cmd.Stderr = log.Writer()
+	sess, err := startPiProcess(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if o.managed != nil && o.managed.key != "" {
+		sess.redact = func(s string) string {
+			return strings.ReplaceAll(s, o.managed.key, "***")
+		}
+	}
+	return sess, nil
+}
+
+// managedAgentDir materializes the generated pi config under <root>/managed;
+// the legacy root files are never touched.
+func managedAgentDir(root string, config ModelConnection) (string, error) {
+	files, err := managedPiFiles(config)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(root, "managed")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	for name, data := range files {
+		path := filepath.Join(dir, name)
+		if existing, err := os.ReadFile(path); err == nil && string(existing) == string(data) {
+			continue // unchanged config stays byte-identical for running sessions
+		}
+		tmp := path + ".tmp"
+		if err := os.WriteFile(tmp, data, 0o600); err != nil {
+			return "", err
+		}
+		if err := os.Rename(tmp, path); err != nil {
+			os.Remove(tmp)
+			return "", err
+		}
+	}
+	return dir, nil
+}
+
+func startPiProcess(cmd *exec.Cmd) (*piSession, error) {
+	if cmd.Stderr == nil {
+		cmd.Stderr = io.Discard
+	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -217,10 +349,69 @@ func startPi(conversationID string, computer *Computer, apps ...integrationEndpo
 	return s, nil
 }
 
+// probeModelWithPi validates a model connection by running one real prompt
+// through pi in a fully isolated, disposable configuration.
+func probeModelWithPi(ctx context.Context, config ModelConnection, key []byte) error {
+	probeCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	root, err := os.MkdirTemp("", "morilo-probe-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(root)
+	files, err := managedPiFiles(config)
+	if err != nil {
+		return err
+	}
+	for name, data := range files {
+		if err := os.WriteFile(filepath.Join(root, name), data, 0o600); err != nil {
+			return err
+		}
+	}
+	args := []string{"--mode", "rpc", "--no-session", "--no-tools",
+		"--no-extensions", "--no-mcp", "--no-skills",
+		"--no-prompt-templates", "--no-themes",
+		"--provider", managedProviderID, "--model", config.ModelID}
+	env := piEnv(root, computerEndpoint{})
+	if len(key) > 0 {
+		env = append(env, modelKeyEnvironment+"="+string(key))
+	}
+	cmd, err := piCommand(args...)
+	if err != nil {
+		return errors.New("cannot start the model runtime for validation")
+	}
+	cmd.Dir = root
+	cmd.Env = env
+	sess, err := startPiProcess(cmd)
+	if err != nil {
+		return errors.New("cannot start the model runtime for validation")
+	}
+	defer sess.kill()
+	failed := false
+	gotText := false
+	err = sess.prompt(probeCtx, modelValidationPrompt, func(e ChatEvent) bool {
+		if e.Type == "text" && e.Delta != "" {
+			gotText = true
+		}
+		if e.Type == "error" {
+			failed = true
+		}
+		return true
+	})
+	if err != nil || failed || !gotText {
+		return errors.New("model validation failed; check the connection, key and model ID")
+	}
+	return nil
+}
+
 func piEnv(agentDir string, endpoint computerEndpoint) []string {
 	env := make([]string, 0, len(os.Environ())+7)
 	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "INSTABOX_API_KEY=") || strings.HasPrefix(e, "COMPOSIO_API_KEY=") || strings.HasPrefix(e, "MORILO_APPS_URL=") || strings.HasPrefix(e, "MORILO_APPS_TOKEN=") {
+		if strings.HasPrefix(e, "INSTABOX_API_KEY=") || strings.HasPrefix(e, "COMPOSIO_API_KEY=") ||
+			strings.HasPrefix(e, "MORILO_APPS_URL=") || strings.HasPrefix(e, "MORILO_APPS_TOKEN=") ||
+			strings.HasPrefix(e, "MORILO_COMPUTER_URL=") || strings.HasPrefix(e, "MORILO_COMPUTER_TOKEN=") ||
+			strings.HasPrefix(e, "PI_CODING_AGENT_DIR=") || strings.HasPrefix(e, modelKeyEnvironment+"=") ||
+			strings.HasPrefix(e, "NODE_OPTIONS=") || strings.HasPrefix(e, "NODE_PATH=") {
 			continue
 		}
 		env = append(env, e)
@@ -261,61 +452,18 @@ func piSessionDir() (string, error) {
 	return dir, nil
 }
 
-// piAgentDir is the app's private pi agent directory, under user data. It
-// holds the relay provider definition and resolves the API key from the
-// macOS Keychain, so nothing secret is written to disk. Missing files get
-// created with these defaults.
+// piAgentDir is the app's private pi agent directory, under user data. The
+// directory is created if needed; no provider or credential defaults are
+// written for new installs — managed configuration lives under managed/ and
+// pre-existing legacy files are left untouched.
 func piAgentDir() (string, error) {
 	base, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
 		base = os.TempDir()
 	}
 	dir := filepath.Join(base, "pi-agent")
-	files := map[string]string{
-		"models.json": `{
-  "providers": {
-    "relay": {
-      "name": "Zilin Relay",
-      "baseUrl": "https://relay.zilin.im/v1",
-      "api": "openai-completions",
-      "models": [
-        {
-          "id": "swe-2",
-          "name": "swe-2",
-          "reasoning": false,
-          "input": ["text", "image"],
-          "contextWindow": 128000,
-          "maxTokens": 16384
-        }
-      ]
-    }
-  }
-}
-`,
-		"settings.json": `{
-  "defaultProvider": "relay",
-  "defaultModel": "swe-2"
-}
-`,
-		"auth.json": `{
-  "relay": {
-    "type": "api_key",
-    "key": "!/usr/bin/security find-generic-password -s morilo-relay -w"
-  }
-}
-`,
-	}
-	for name, content := range files {
-		path := filepath.Join(dir, name)
-		if _, err := os.Stat(path); err == nil {
-			continue
-		}
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return "", err
-		}
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			return "", err
-		}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
 	}
 	return dir, nil
 }
@@ -419,6 +567,9 @@ func (s *piSession) call(ctx context.Context, command map[string]any) (*rpcRespo
 		if resp.Error == "" {
 			resp.Error = "command failed"
 		}
+		if s.redact != nil {
+			resp.Error = s.redact(resp.Error)
+		}
 		return nil, errors.New(resp.Error)
 	}
 	return &resp, nil
@@ -508,6 +659,9 @@ func (s *piSession) forward(record map[string]any, send func(ChatEvent) bool, se
 			detail, _ := ev["error"].(string)
 			if detail == "" {
 				detail = stringOf(ev, "reason")
+			}
+			if s.redact != nil {
+				detail = s.redact(detail)
 			}
 			send(ChatEvent{Type: "error", Detail: detail})
 		}

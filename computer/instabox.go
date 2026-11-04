@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,7 +39,13 @@ func NewInstabox(apiURL, key, machineID string) *Instabox {
 		apiURL:    strings.TrimSuffix(apiURL, "/"),
 		key:       key,
 		machineID: machineID,
-		client:    &http.Client{Timeout: 10 * time.Minute},
+		client: &http.Client{
+			Timeout: 10 * time.Minute,
+			// Never follow redirects: X-API-Key must not leak to another host.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 	}
 }
 
@@ -73,7 +80,7 @@ func (m *Instabox) Wake(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var op operation
+	var op Operation
 	if err := json.Unmarshal(data, &op); err != nil {
 		return err
 	}
@@ -97,15 +104,136 @@ func (m *Instabox) Wake(ctx context.Context) error {
 	return nil
 }
 
-type operation struct {
-	ID    string `json:"id"`
-	State string `json:"state"`
-	Error struct {
+type Operation struct {
+	ID        string `json:"id"`
+	MachineID string `json:"machineId"`
+	Type      string `json:"type"`
+	State     string `json:"state"`
+	Error     struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
 
-func (o operation) done() bool {
+// Machines lists every machine on the account, following nextCursor pages.
+func (m *Instabox) Machines(ctx context.Context) ([]Info, error) {
+	var all []Info
+	seen := map[string]bool{}
+	cursor := ""
+	for {
+		q := url.Values{}
+		if cursor != "" {
+			q.Set("cursor", cursor)
+		}
+		data, err := m.do(ctx, http.MethodGet, "/v1/machines", q, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		var page struct {
+			Machines   []Info  `json:"machines"`
+			NextCursor *string `json:"nextCursor"`
+		}
+		if err := json.Unmarshal(data, &page); err != nil {
+			return nil, err
+		}
+		all = append(all, page.Machines...)
+		if page.NextCursor == nil || *page.NextCursor == "" {
+			return all, nil
+		}
+		if seen[*page.NextCursor] {
+			return nil, errors.New("instabox: repeated pagination cursor")
+		}
+		seen[*page.NextCursor] = true
+		cursor = *page.NextCursor
+	}
+}
+
+// Me returns the account login only; other user fields are discarded.
+func (m *Instabox) Me(ctx context.Context) (string, error) {
+	data, err := m.do(ctx, http.MethodGet, "/v1/me", nil, nil, nil)
+	if err != nil {
+		return "", err
+	}
+	var me struct {
+		Login string `json:"login"`
+	}
+	if err := json.Unmarshal(data, &me); err != nil {
+		return "", err
+	}
+	return me.Login, nil
+}
+
+// AgentTemplate returns the default spec of the latest creatable
+// agent-browser template. ok is false when no such template exists.
+func (m *Instabox) AgentTemplate(ctx context.Context) (Spec, bool, error) {
+	data, err := m.do(ctx, http.MethodGet, "/v1/templates", nil, nil, nil)
+	if err != nil {
+		return Spec{}, false, err
+	}
+	var templates struct {
+		Templates []struct {
+			ID          string `json:"id"`
+			Latest      bool   `json:"latest"`
+			Creatable   bool   `json:"creatable"`
+			DefaultSpec Spec   `json:"defaultSpec"`
+		} `json:"templates"`
+	}
+	if err := json.Unmarshal(data, &templates); err != nil {
+		return Spec{}, false, err
+	}
+	for _, t := range templates.Templates {
+		if t.ID == "agent-browser" && t.Latest && t.Creatable {
+			return t.DefaultSpec, true, nil
+		}
+	}
+	return Spec{}, false, nil
+}
+
+var machineNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+
+// CreateMachine submits a creation request. idempotencyKey is generated and
+// persisted by the caller so retries reuse the exact same body and key.
+func (m *Instabox) CreateMachine(ctx context.Context, name, idempotencyKey string) (Operation, error) {
+	if !machineNamePattern.MatchString(name) {
+		return Operation{}, fmt.Errorf("instabox: invalid machine name %q", name)
+	}
+	if idempotencyKey == "" {
+		return Operation{}, errors.New("instabox: creation requires an idempotency key")
+	}
+	body := map[string]any{"name": name, "templateId": "agent-browser", "vault": false, "secrets": []string{}, "envSecrets": []string{}}
+	data, err := m.do(ctx, http.MethodPost, "/v1/machines", nil, body,
+		http.Header{"Idempotency-Key": []string{idempotencyKey}})
+	if err != nil {
+		return Operation{}, err
+	}
+	return decodeOperation(data)
+}
+
+// Operation fetches one Operation's state.
+func (m *Instabox) Operation(ctx context.Context, id string) (Operation, error) {
+	data, err := m.do(ctx, http.MethodGet, "/v1/operations/"+url.PathEscape(id), nil, nil, nil)
+	if err != nil {
+		return Operation{}, err
+	}
+	return decodeOperation(data)
+}
+
+func decodeOperation(data []byte) (Operation, error) {
+	var op Operation
+	if err := json.Unmarshal(data, &op); err != nil {
+		return op, errors.New("instabox: invalid operation response")
+	}
+	if op.ID == "" {
+		return op, errors.New("instabox: operation response is missing its ID")
+	}
+	switch op.State {
+	case "queued", "running", "succeeded", "failed":
+		return op, nil
+	default:
+		return op, errors.New("instabox: unknown operation state")
+	}
+}
+
+func (o Operation) done() bool {
 	return o.State == "succeeded" || o.State == "failed"
 }
 
@@ -325,14 +453,36 @@ func (m *Instabox) do(ctx context.Context, method, path string, q url.Values, bo
 		return nil, err
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
+	var bodyReader io.Reader = resp.Body
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyReader = io.LimitReader(resp.Body, 64<<10)
+	}
+	data, err := io.ReadAll(bodyReader)
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("instabox: %s %s: %s: %s", method, path, resp.Status, m.redact(data))
+		return nil, &APIError{StatusCode: resp.StatusCode, Status: resp.Status,
+			Path: path, Message: m.redact(data)}
 	}
 	return data, nil
+}
+
+// APIError is a non-2xx Instabox response. Message is bounded and has the
+// credential redacted; it never contains the request key.
+type APIError struct {
+	StatusCode int
+	Status     string
+	Path       string
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	msg := e.Message
+	if len(msg) > 200 {
+		msg = msg[:200]
+	}
+	return fmt.Sprintf("instabox: %s: %s: %s", e.Path, e.Status, msg)
 }
 
 func (m *Instabox) redact(data []byte) string {

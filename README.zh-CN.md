@@ -19,7 +19,13 @@ Morilo 是一个基于 Go、MyGo 和 React 的早期桌面 AI 应用。它将多
 - **可选应用连接**：通过 Composio 连接 GitHub、Vercel，仅开放已实现的只读工具白名单。
 - **可选远程电脑**：连接 Instabox 机器、观看桌面，并按需启用交互控制。
 
-> **项目状态：** 当前已验证的桌面平台是 macOS。账单、邀请、例行任务及部分保险库页面仍包含演示或仅在本地生效的界面，不代表完整生产服务。纯浏览器预览使用模拟回复；真实 Agent 执行需要桌面应用和已配置的模型服务。
+> **项目状态：** 当前已验证的桌面平台是 macOS。纯浏览器预览使用模拟回复；真实 Agent 执行需要桌面应用和已配置的模型服务。演示账单、邀请、权限及保险库设置已移除；定时任务尚未实现。
+
+## 安装
+
+安装包面向 **macOS 13.5 或更新版本**，支持 Apple Silicon 和 Intel，包含 **Node.js 24.22.2 与 Pi 1.5.0**。使用安装包不需要安装 Go、Node 或 Pi。
+
+[GitHub Actions](https://github.com/hifizz/morilo/actions/workflows/build.yml) 会为 `main` 和 `develop` 生成预览包；未签名包明确标为测试用途。维护者配置 Apple 发布凭据后，签名并公证的版本通过 [GitHub Releases](https://github.com/hifizz/morilo/releases) 发布。详见[分发说明](docs/distribution.md)。
 
 ## 本地运行
 
@@ -27,15 +33,17 @@ Morilo 是一个基于 Go、MyGo 和 React 的早期桌面 AI 应用。它将多
 
 - macOS：当前已验证的原生开发流程。
 - Go **1.27.3 或更新版本**。
-- Node.js **24** 和 npm：已验证的开发环境。
-- 支持 `pi --mode rpc` 的 Pi CLI，且 `pi` 在 `PATH` 中；已验证版本为 **1.5.0**。
+- Node.js 版本见 [`.node-version`](.node-version)（**24.22.2**）和 npm。
 - 可用的模型服务：用于真实聊天。
+
+无需全局安装 Pi：`npm run prepare:runtime` 会准备内置 Node + 固定版本 Pi 运行时；仅在未准备时才回退到已安装的 `pi`。
 
 ```bash
 git clone https://github.com/hifizz/morilo.git
 cd morilo
 npm ci
 npm --prefix frontend ci
+npm run prepare:runtime
 npm run dev
 ```
 
@@ -43,21 +51,23 @@ npm run dev
 
 ### 配置模型服务
 
-打开界面不等于模型已经配置完成。Morilo 在应用数据目录中初始化专属 Pi 配置，**不会使用全局 Pi 配置**。
+首次启动的引导流程会要求配置模型服务：选择预设（OpenAI、Anthropic、Google Gemini、Ollama 或 OpenAI 兼容服务），按需调整协议与 Base URL，粘贴 API Key，并手动输入模型 ID 或「获取模型列表」。「测试并保存」会向你的服务发送一次简短的真实请求，可能按你的套餐计费。本地服务可勾选「不需要 API Key」。高级设置包含图片输入、推理、上下文窗口与最大输出 tokens，需与服务商实际能力一致。
+
+密钥只保存在系统凭据服务中。Morilo 在 `<userData>/pi-agent/managed` 写入不含密钥的托管 Pi 配置，**不会使用或修改全局 Pi 配置**；`connections.json` 只存凭据的不透明引用，不落密钥。
 
 | 构建类型 | Pi 配置目录 |
 | --- | --- |
 | 开发版 | `~/Library/Application Support/Morilo Dev/pi-agent/` |
 | 打包版 | `~/Library/Application Support/Morilo/pi-agent/` |
 
-相关文件为 `models.json`、`settings.json` 和 `auth.json`。聊天会话启动时会初始化缺失的文件；默认配置见 [`agent.go`](agent.go)。
-
-当前默认配置使用项目专属的 OpenAI 兼容中转服务及 `swe-2` 模型。你需要提供该服务的访问权限，**或者将 provider、模型和认证配置替换成自己的 Pi 兼容配置**。默认认证命令从 macOS 钥匙串的 `morilo-relay` 服务读取密钥；应用不附带 API Key。请勿将凭据写入仓库。
+已有且有效的应用专属 `pi-agent` 配置会保留并视为已完成配置；不会迁移或删除任何数据。
 
 ### 可选服务
 
 - **GitHub / Vercel**：在桌面应用中打开「连接应用」，配置 Composio 项目 API Key。该密钥保存在系统凭据服务中。仍需留意连接账户的授权范围：Morilo 的工具白名单不会缩小底层 Token 自身的权限。
-- **Instabox**：在启动应用前，通过环境提供 `INSTABOX_API_KEY` 和 `INSTABOX_MACHINE_ID`；`INSTABOX_API_URL` 可选。未配置时，Agent 工具在本机 `~/morilo-workspace` 中运行。
+- **Instabox**：在 **设置 → 电脑**（或首次引导）中用你的个人 Instabox API Key 连接，然后选择一台机器。「创建远程电脑」需要输入名称、展示服务返回的规格，并经明确确认后才会创建；费用由你的 Instabox 账户按套餐收取。创建中的机器有持久化记录，可恢复跟踪或停止跟踪——停止跟踪不会删除机器也不会停止计费。同一表单支持更换密钥（创建进行中不可更换）。环境变量 `INSTABOX_API_KEY`/`INSTABOX_MACHINE_ID`/`INSTABOX_API_URL` 仍作为旧配置的兼容回退，但不是新装默认方式。
+
+  工作模式：**仅聊天**（新装默认，无文件和应用工具）、**本机**（Agent 工具在 `~/morilo-workspace` 中以你的完整系统权限运行——不是沙箱，需明确确认）、**远程电脑**（你的 Instabox 机器）。
 
 ## 开发命令
 
@@ -67,8 +77,8 @@ npm run dev
 | `npm run build` | 构建前端并打包桌面应用 |
 | `npm run generate` | 重新生成 Go 到 TypeScript 的类型化绑定 |
 | `npm --prefix frontend run dev` | 仅启动浏览器预览，使用模拟回复 |
-| `CGO_ENABLED=0 go test ./... -skip '^TestPiSessionRoundTrip$'` | 运行不包含真实模型往返的测试 |
-| `go test . -run '^TestPiSessionRoundTrip$' -v` | 验证真实 Pi / 模型往返；需要有效凭据，可能产生模型服务费用 |
+| `CGO_ENABLED=0 go test ./...` | 离线业务测试，默认跳过付费模型调用 |
+| `MORILO_LIVE_TEST=1 go test . -run '^TestPiSessionRoundTrip$' -v` | 显式启用旧 Pi 配置的真实往返测试；需要有效凭据，可能产生模型服务费用 |
 | `npm --prefix frontend run test:markdown` | 检查 Markdown 渲染与不安全内容处理 |
 
 在已验证的 Apple Silicon 环境中，macOS 打包产物位于 `build/darwin-arm64/`。本地构建不会自动完成面向公开分发的公证。

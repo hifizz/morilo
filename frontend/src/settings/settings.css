@@ -12,18 +12,20 @@
 .settings-nav button:hover { background: var(--ds-surface-subtle); color: var(--ds-text-primary); }
 .settings-nav button.is-active { background: var(--ds-surface-active); color: var(--ds-text-primary); }
 .settings-content { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--ds-neutral-75); }
-.settings-content__header { height: 78px; flex: 0 0 auto; display: flex; align-items: center; padding: 10px 30px 0; }
+.settings-content__header { height: 76px; flex: 0 0 auto; display: flex; align-items: center; padding: 10px 32px 0; }
 .settings-content__header h2 { margin: 0; color: var(--ds-text-primary); font-size: 23px; font-weight: 550; letter-spacing: -.02em; }
-.settings-scroll { min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; padding: 0 30px 30px; scrollbar-width: thin; scrollbar-color: var(--ds-border-strong) transparent; }
-.setting-section-label { margin: 24px 0 9px; color: var(--ds-text-secondary); font-size: 13px; font-weight: 500; }
+.settings-scroll { min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; padding: 0 32px 32px; scrollbar-width: thin; scrollbar-color: var(--ds-border-strong) transparent; }
+.setting-section-label { margin: 24px 0 10px; color: var(--ds-text-secondary); font-size: 13px; font-weight: 500; }
 .settings-scroll > .setting-section-label:first-child { margin-top: 4px; }
 .setting-card { overflow: hidden; border: 1px solid var(--ds-border-default); border-radius: var(--ds-radius-xl); background: var(--ds-surface-default); }
-.setting-row { min-height: 58px; display: flex; align-items: center; gap: 18px; padding: 12px 15px; }
+.setting-card + .setting-card { margin-top: 16px; }
+.setting-row { min-height: 58px; display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 12px 15px; }
 .setting-row + .setting-row { border-top: 1px solid var(--ds-border-subtle); }
-.setting-row__copy { min-width: 0; flex: 1; }
+.setting-row__copy { min-width: 0; flex: 1 1 220px; }
 .setting-row__copy strong { display: block; color: var(--ds-text-secondary); font-size: 13px; font-weight: 500; line-height: 1.4; }
 .setting-row__copy p { max-width: 430px; margin: 4px 0 0; color: var(--ds-text-subtle); font-size: 11px; line-height: 1.5; }
-.setting-row__control { flex: 0 0 auto; margin-left: auto; }
+.setting-row__control { flex: 0 1 auto; max-width: 100%; margin-left: auto; }
+.setting-row__control :is(input, select) { max-width: 100%; min-width: 0; }
 .setting-row__control .ds-button { white-space: nowrap; }
 .settings-note { margin: 10px 2px 22px; color: var(--ds-text-subtle); font-size: 12px; line-height: 1.55; }
 .account-card { display: flex; align-items: center; gap: 10px; padding: 14px; }
@@ -163,4 +165,62 @@
   .vault-scan-actions { grid-template-columns: 1fr; }
   .device-row { flex-wrap: wrap; }
   .device-row > div { min-width: 160px; }
+}
+
+/* Shared connection forms (onboarding + Settings) */
+.connection-form { display: grid; gap: 16px; }
+.connection-form h3 { margin: 0; color: var(--ds-text-primary); font-size: 18px; font-weight: 550; }
+.connection-field { display: grid; gap: 8px; min-width: 0; }
+.connection-field > span { color: var(--ds-text-secondary); font-size: 13px; font-weight: 500; }
+.connection-field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.connection-field :is(input, select, .ds-select, .ds-textarea) { max-width: 100%; min-width: 0; min-height: 40px; }
+.connection-inline { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.connection-inline > :first-child { flex: 1 1 220px; min-width: 0; }
+.connection-check { display: flex; gap: 10px; align-items: center; color: var(--ds-text-secondary); font-size: 13px; }
+.connection-check .ds-switch { flex: 0 0 auto; }
+.connection-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.connection-help { margin: 0; color: var(--ds-text-subtle); font-size: 12px; line-height: 1.6; }
+.connection-error { margin: 0; color: var(--ds-danger); font-size: 13px; line-height: 1.5; }
+.connection-advanced { display: grid; }
+.connection-advanced summary { cursor: pointer; color: var(--ds-text-secondary); font-size: 13px; font-weight: 500; }
+.connection-advanced[open] summary { margin-bottom: 12px; }
+.connection-advanced[open] { gap: 16px; }
+.connection-confirm { margin: 0; padding-left: 18px; color: var(--ds-text-secondary); font-size: 13px; line-height: 1.7; }
+.connection-empty { display: grid; gap: 10px; padding: 14px; border: 1px dashed var(--ds-border-strong); border-radius: var(--ds-radius-lg); color: var(--ds-text-secondary); font-size: 13px; }
+.mode-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.mode-card { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--ds-border-default); border-radius: var(--ds-radius-lg); background: var(--ds-surface-default); text-align: left; cursor: pointer; }
+.mode-card:hover { background: var(--ds-surface-hover); }
+.mode-card.is-active { border-color: var(--ds-accent-control); box-shadow: 0 0 0 1px var(--ds-accent-control); }
+.mode-card strong { color: var(--ds-text-primary); font-size: 14px; font-weight: 550; }
+.mode-card p { margin: 0; color: var(--ds-text-subtle); font-size: 12px; line-height: 1.55; }
+.machine-list { margin: 0; padding: 0; display: grid; gap: 8px; list-style: none; }
+.machine-item { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--ds-border-default); border-radius: var(--ds-radius-lg); background: var(--ds-surface-default); }
+.machine-item__info { min-width: 0; flex: 1 1 200px; display: grid; gap: 2px; }
+.machine-item__info strong { color: var(--ds-text-primary); font-size: 13px; font-weight: 550; }
+.machine-item__info span { color: var(--ds-text-subtle); font-size: 11px; }
+.machine-item__selected { margin-left: auto; color: var(--ds-text-secondary); font-size: 12px; font-weight: 500; }
+.machine-item--create { justify-content: center; border-style: dashed; }
+.pending-creation { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--ds-border-default); border-radius: var(--ds-radius-lg); background: var(--ds-surface-subtle); }
+.pending-creation strong { color: var(--ds-text-primary); font-size: 13px; }
+.pending-creation p { margin: 0; color: var(--ds-text-secondary); font-size: 12px; line-height: 1.55; }
+.settings-link { color: var(--ds-accent-control); text-decoration: none; font-size: 13px; }
+
+/* Onboarding */
+.onboarding { height: 100dvh; min-height: 0; overflow: auto; box-sizing: border-box; padding: 48px 32px 32px; background: var(--ds-bg-sidebar); --app-region: drag; }
+.onboarding :is(button, input, select, summary, a, .ds-select, .ds-switch) { --app-region: no-drag; }
+.onboarding-topbar { position: fixed; top: 14px; right: 16px; display: flex; gap: 8px; --app-region: no-drag; }
+.connection-fields { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 16px; }
+.onboarding-card { max-width: 720px; --app-region: no-drag; margin: 0 auto; display: grid; gap: 24px; padding: 32px; border: 1px solid var(--ds-border-default); border-radius: var(--ds-radius-window); background: var(--ds-surface-default); }
+.onboarding-card h1 { margin: 0; color: var(--ds-text-primary); font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+.onboarding-steps { margin: 0; padding: 0; display: flex; gap: 18px; list-style: none; }
+.onboarding-steps li { display: flex; gap: 8px; align-items: center; color: var(--ds-text-subtle); font-size: 12px; }
+.onboarding-steps li span { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--ds-surface-subtle); color: var(--ds-text-subtle); font-size: 11px; }
+.onboarding-steps li.is-active { color: var(--ds-text-primary); font-weight: 500; }
+.onboarding-steps li.is-active span { background: var(--ds-accent-control); color: var(--ds-text-on-accent); }
+.onboarding-steps li.is-done { color: var(--ds-text-secondary); }
+@media (max-width: 720px) {
+  .mode-cards { grid-template-columns: 1fr; }
+  .connection-field-row { grid-template-columns: 1fr; }
+  .onboarding { padding: 48px 12px 16px; }
+  .onboarding-card { padding: 20px; }
 }

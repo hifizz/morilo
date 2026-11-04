@@ -40,6 +40,13 @@ func main() {
 	} else {
 		mygo.Bind(store)
 	}
+	connections, err := NewConnections(computer)
+	if err != nil {
+		log.Fatalf("connections: %v", err)
+	}
+	chat.connections = connections
+	connections.onCommit = chat.resetAll
+	mygo.Bind(connections)
 	mygo.App.WhenReady(func() {
 		settings.applyTheme = func(theme string) {
 			mygo.Theme.SetSource(mygo.ThemeSource(theme))

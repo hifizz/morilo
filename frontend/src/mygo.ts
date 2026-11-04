@@ -38,6 +38,39 @@ export interface ComputerView {
   viewOnly: boolean;
 }
 
+/** ConnectionSnapshot is the public, non-secret view of connection state. */
+export interface ConnectionSnapshot {
+  model: ModelConnection;
+  modelConfigured: boolean;
+  legacyModel: boolean;
+  hasModelKey: boolean;
+  hasInstaboxKey: boolean;
+  machineId: string;
+  machineName: string;
+  /** chat | local | remote */
+  mode: string;
+  onboardingComplete: boolean;
+  pendingCreation?: MachineCreation;
+  connectionError?: string;
+}
+
+export interface Info {
+  id: string;
+  name: string;
+  state: string;
+  spec: Spec;
+  runtime: Runtime;
+}
+
+export interface InstaboxSetup {
+  machines: Info[];
+  account: string;
+  templateAvailable: boolean;
+  vcpus: number;
+  memoryMiB: number;
+  diskGiB: number;
+}
+
 export interface IntegrationAuthLink {
   url: string;
   connectionId: string;
@@ -77,6 +110,35 @@ export interface LocalProfile {
   memory: string;
 }
 
+export interface MachineCreation {
+  name: string;
+  operationId: string;
+  machineId: string;
+  /** submitting/queued/running/starting/checking/ready/failed */
+  state: string;
+  error?: string;
+}
+
+/**
+ * ModelConnection contains only user-visible, non-secret configuration.
+ * The API key is supplied to Pi through a child-process environment variable.
+ */
+export interface ModelConnection {
+  api: string;
+  baseUrl: string;
+  modelId: string;
+  noApiKey: boolean;
+  supportsImages: boolean;
+  reasoning: boolean;
+  contextWindow: number;
+  maxTokens: number;
+}
+
+export interface ModelOption {
+  id: string;
+  name: string;
+}
+
 export interface Preferences {
   theme: string;
   accent: string;
@@ -86,10 +148,20 @@ export interface Preferences {
   timezone: string;
 }
 
+export interface Runtime {
+  ready: boolean;
+}
+
 export interface SettingsSnapshot {
   preferences: Preferences;
   profiles: LocalProfile[];
   activeProfileId: string;
+}
+
+export interface Spec {
+  vcpus: number;
+  memMiB: number;
+  persistentDiskGiB: number;
 }
 
 // ---- Services ----
@@ -182,5 +254,50 @@ export const Store = {
   /** Save writes the state atomically. */
   save(profileID: string, state: string): Promise<void> {
     return call("Store.Save", profileID, state);
+  },
+} as const;
+
+export const Connections = {
+  /**
+   * ConfigureInstabox validates a fresh key (list + account + template), then
+   * stores it. On any failure the previous configuration is untouched.
+   */
+  configureInstabox(apiKey: string): Promise<InstaboxSetup> {
+    return call("Connections.ConfigureInstabox", apiKey);
+  },
+  createMachine(name: string): Promise<MachineCreation> {
+    return call("Connections.CreateMachine", name);
+  },
+  /** DismissCreation clears the pending record only; it never deletes a machine. */
+  dismissCreation(): Promise<ConnectionSnapshot> {
+    return call("Connections.DismissCreation");
+  },
+  finishOnboarding(): Promise<ConnectionSnapshot> {
+    return call("Connections.FinishOnboarding");
+  },
+  get(): Promise<ConnectionSnapshot> {
+    return call("Connections.Get");
+  },
+  /** InstaboxMachines lists machines for the saved key (or the legacy env key). */
+  instaboxMachines(): Promise<InstaboxSetup> {
+    return call("Connections.InstaboxMachines");
+  },
+  /** ListModels is optional discovery only; saving never requires it. */
+  listModels(config: ModelConnection, apiKey: string): Promise<ModelOption[]> {
+    return call("Connections.ListModels", config, apiKey);
+  },
+  /** RefreshCreation advances a pending creation by exactly one step. */
+  refreshCreation(): Promise<MachineCreation> {
+    return call("Connections.RefreshCreation");
+  },
+  /** SaveModel validates the connection with a real probe before committing. */
+  saveModel(config: ModelConnection, apiKey: string): Promise<ConnectionSnapshot> {
+    return call("Connections.SaveModel", config, apiKey);
+  },
+  selectMachine(machineID: string): Promise<ConnectionSnapshot> {
+    return call("Connections.SelectMachine", machineID);
+  },
+  setMode(mode: string): Promise<ConnectionSnapshot> {
+    return call("Connections.SetMode", mode);
   },
 } as const;

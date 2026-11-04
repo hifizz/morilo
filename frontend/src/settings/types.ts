@@ -1,4 +1,4 @@
-export type SettingsSection = 'general' | 'computer' | 'permissions' | 'vault' | 'billing' | 'updates'
+export type SettingsSection = 'general' | 'model' | 'computer' | 'updates'
 
 export interface SettingsPageProps {
   onNotify: (message: string) => void

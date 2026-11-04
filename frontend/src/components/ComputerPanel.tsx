@@ -4,6 +4,7 @@ import { isCallError, isMyGo } from 'mygo-runtime'
 import { Button, IconButton } from '@/design-system'
 import { useDismissOnEscape } from '@/design-system/useDismissOnEscape'
 import { Computer, type ComputerStatus, type ComputerView } from '@/mygo'
+import { useConnections } from '@/settings/ConnectionProvider'
 import { useSettings } from '@/settings/SettingsProvider'
 
 const stateLabels: Record<string, [string, string]> = {
@@ -18,6 +19,7 @@ const stateLabels: Record<string, [string, string]> = {
 
 export function ComputerPanel({ label }: { label?: string }) {
   const { t } = useSettings()
+  const { snapshot } = useConnections()
   const inApp = isMyGo()
   const [status, setStatus] = useState<ComputerStatus | null>(null)
   const [view, setView] = useState<ComputerView | null>(null)
@@ -28,13 +30,25 @@ export function ComputerPanel({ label }: { label?: string }) {
   const closeRef = useRef<HTMLButtonElement>(null)
   const openRef = useRef<HTMLButtonElement>(null)
   const wasExpandedRef = useRef(false)
+  const generation = useRef(0)
 
+  // A machine change invalidates any open view/status of the old one.
+  const machineId = snapshot?.machineId
+  const [prevMachine, setPrevMachine] = useState(machineId)
+  if (prevMachine !== machineId) {
+    setPrevMachine(machineId)
+    setView(null)
+    setStatus(null)
+    setError('')
+  }
   useEffect(() => {
     if (!inApp) return
+    const gen = ++generation.current
     Computer.status()
-      .then(setStatus)
-      .catch((err) => setError(isCallError(err) ? err.message : String(err)))
-  }, [inApp])
+      .then((next) => { if (gen === generation.current) setStatus(next) })
+      .catch((err) => { if (gen === generation.current) setError(isCallError(err) ? err.message : String(err)) })
+    return () => { generation.current += 1 }
+  }, [inApp, machineId])
 
   const connect = (takeControl = false) => {
     setError('')
@@ -81,7 +95,7 @@ export function ComputerPanel({ label }: { label?: string }) {
   ) : !status ? (
     <div className="computer-placeholder"><Monitor size={34} /><strong>{error ? t('无法获取电脑状态', 'Could not get computer status') : t('正在获取电脑状态…', 'Getting computer status…')}</strong></div>
   ) : !status.configured ? (
-    <div className="computer-placeholder"><Monitor size={34} /><strong>{t('未配置远程电脑', 'Remote computer not configured')}</strong><p className="computer-config">INSTABOX_API_KEY / INSTABOX_MACHINE_ID<br />{t('配置后重启应用；聊天仍使用本机工具。', 'Restart the app after configuration; chat still uses local tools.')}</p></div>
+    <div className="computer-placeholder"><Monitor size={34} /><strong>{t('未配置远程电脑', 'Remote computer not configured')}</strong><p className="computer-config">{t('请在 Settings → Computer 中连接你的 Instabox 电脑。', 'Connect your Instabox machine in Settings → Computer.')}</p></div>
   ) : loading ? (
     <div className="computer-placeholder"><LoaderCircle className="ds-button__spinner" size={30} /><strong>{t('正在唤醒…', 'Waking up…')}</strong><p>{t('正在启动电脑并连接桌面', 'Starting the computer and connecting to its desktop')}</p></div>
   ) : status.state === 'running' ? (

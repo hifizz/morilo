@@ -5,6 +5,7 @@ import { AgentAvatar } from './AgentAvatar'
 import { ComputerPanel } from './ComputerPanel'
 import { Button, IconButton, SegmentedControl, TextField } from '@/design-system'
 import { useSettings } from '@/settings/SettingsProvider'
+import { useConnections } from '@/settings/ConnectionProvider'
 
 type InspectorTab = 'details' | 'library' | 'computer'
 
@@ -19,6 +20,7 @@ interface InspectorPanelProps {
 
 export function InspectorPanel({ agent, conversation, files, mobile = false, onClose, onNotify }: InspectorPanelProps) {
   const { t, snapshot } = useSettings()
+  const { snapshot: connections } = useConnections()
   const [tab, setTab] = useState<InspectorTab>('details')
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
   const [routineOpen, setRoutineOpen] = useState(false)
@@ -115,7 +117,7 @@ export function InspectorPanel({ agent, conversation, files, mobile = false, onC
         {tab === 'computer' && (
           <section className="inspector-section computer-section">
             <h3>{t('电脑', 'Computer')}</h3>
-            <ComputerPanel label={agent.name} />
+            <ComputerPanel key={connections?.machineId ?? 'none'} label={agent.name} />
           </section>
         )}
       </div>

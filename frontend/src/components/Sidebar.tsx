@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { PanelLeftClose, PanelLeftOpen, Plus, Search, X, Gift, Pin, LayoutGrid } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Plus, Search, X, Pin, LayoutGrid } from 'lucide-react'
 import { AgentAvatar } from './AgentAvatar'
 import { AccountMenu } from './AccountMenu'
 import { BotContextMenu, type BotContextAction } from './BotContextMenu'
@@ -7,6 +7,7 @@ import { SidebarResizer } from './SidebarResizer'
 import { IconButton } from '@/design-system'
 import { IntegrationIcon } from '@/integrations/IntegrationIcon'
 import { useSettings } from '@/settings/SettingsProvider'
+import type { SettingsSection } from '@/settings/types'
 import type { Agent, Conversation } from '@/types/chat'
 
 interface SidebarProps {
@@ -20,17 +21,16 @@ interface SidebarProps {
   onNew: () => void
   onSearch: () => void
   onOpenIntegrations: () => void
-  onOpenReferral: () => void
   width?: number
   onWidthChange?: (width: number) => void
   onResizingChange?: (resizing: boolean) => void
   onCloseMobile?: () => void
-  onOpenSettings: (section: 'general' | 'billing') => void
+  onOpenSettings: (section: SettingsSection) => void
   onConversationAction: (id: string, action: BotContextAction) => void
   onNotify: (message: string) => void
 }
 
-export function Sidebar({ agents, conversations, activeId, collapsed, mobile = false, onCollapse, onSelect, onNew, onSearch, onOpenIntegrations, onOpenReferral, width = 260, onWidthChange, onResizingChange, onCloseMobile, onOpenSettings, onConversationAction, onNotify }: SidebarProps) {
+export function Sidebar({ agents, conversations, activeId, collapsed, mobile = false, onCollapse, onSelect, onNew, onSearch, onOpenIntegrations, width = 260, onWidthChange, onResizingChange, onCloseMobile, onOpenSettings, onConversationAction, onNotify }: SidebarProps) {
   const { profile, t } = useSettings()
   const agentMap = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const filtered = conversations.filter((conversation) => !conversation.hidden && conversation.id !== 'default')
@@ -116,9 +116,6 @@ export function Sidebar({ agents, conversations, activeId, collapsed, mobile = f
             <IconButton label={t('连接应用', 'Connect Apps')} onClick={onOpenIntegrations} className="collapsed-footer-action">
               <LayoutGrid size={20} strokeWidth={1.6} />
             </IconButton>
-            <IconButton label={t('邀请好友使用 Morilo', 'Gift Morilo to a friend')} onClick={onOpenReferral} className="collapsed-footer-action">
-              <Gift size={19} strokeWidth={1.6} />
-            </IconButton>
           </>
         )}
         <AccountMenu collapsed={collapsed} onOpenSettings={onOpenSettings} onNotify={onNotify}>
@@ -137,7 +134,6 @@ export function Sidebar({ agents, conversations, activeId, collapsed, mobile = f
                 <IntegrationIcon icon="context7" size={16} />
               </span>
             </button>
-            <button type="button" className="gift-entry" aria-label={t('邀请好友使用 Morilo', 'Gift Morilo to a friend')} title={t('邀请好友使用 Morilo', 'Gift Morilo to a friend')} onClick={onOpenReferral}><Gift size={15} /></button>
           </div>
         )}
       </div>

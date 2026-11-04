@@ -91,15 +91,20 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 func (c *Computer) execHandler(w http.ResponseWriter, r *http.Request) {
+	backend := c.getBackend()
 	var cmd computer.Command
 	if !decode(w, r, &cmd) {
 		return
 	}
-	if err := c.backend.Wake(r.Context()); err != nil {
+	if backend == nil {
+		http.Error(w, "remote computer is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if err := backend.Wake(r.Context()); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	res, err := c.backend.Exec(r.Context(), cmd)
+	res, err := backend.Exec(r.Context(), cmd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -108,17 +113,22 @@ func (c *Computer) execHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Computer) readHandler(w http.ResponseWriter, r *http.Request) {
+	backend := c.getBackend()
 	var req struct {
 		Path string `json:"path"`
 	}
 	if !decode(w, r, &req) {
 		return
 	}
-	if err := c.backend.Wake(r.Context()); err != nil {
+	if backend == nil {
+		http.Error(w, "remote computer is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if err := backend.Wake(r.Context()); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	data, err := c.backend.ReadFile(r.Context(), req.Path)
+	data, err := backend.ReadFile(r.Context(), req.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -128,6 +138,7 @@ func (c *Computer) readHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Computer) writeHandler(w http.ResponseWriter, r *http.Request) {
+	backend := c.getBackend()
 	var req struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
@@ -135,11 +146,15 @@ func (c *Computer) writeHandler(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if err := c.backend.Wake(r.Context()); err != nil {
+	if backend == nil {
+		http.Error(w, "remote computer is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if err := backend.Wake(r.Context()); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	if err := c.backend.WriteFile(r.Context(), req.Path, []byte(req.Content)); err != nil {
+	if err := backend.WriteFile(r.Context(), req.Path, []byte(req.Content)); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
@@ -147,16 +162,21 @@ func (c *Computer) writeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Computer) desktopHandler(w http.ResponseWriter, r *http.Request) {
+	backend := c.getBackend()
 	var action computer.Action
 	if !decode(w, r, &action) {
 		return
 	}
-	if err := c.backend.Wake(r.Context()); err != nil {
+	if backend == nil {
+		http.Error(w, "remote computer is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if err := backend.Wake(r.Context()); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 	if action.Action == "screenshot" {
-		png, err := c.backend.Screenshot(r.Context())
+		png, err := backend.Screenshot(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
@@ -165,7 +185,7 @@ func (c *Computer) desktopHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write(png)
 		return
 	}
-	if err := c.backend.Act(r.Context(), action); err != nil {
+	if err := backend.Act(r.Context(), action); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}

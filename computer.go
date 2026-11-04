@@ -24,6 +24,29 @@ func NewComputer(backend computer.Backend) *Computer {
 	return &Computer{backend: backend}
 }
 
+// getBackend snapshots the active backend for one operation.
+func (c *Computer) getBackend() computer.Backend {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.backend
+}
+
+// replaceBackend swaps the backend and tears down the old loopback bridge
+// so the next launch builds a fresh one against the new machine.
+func (c *Computer) replaceBackend(backend computer.Backend) {
+	c.mu.Lock()
+	server := c.server
+	c.server = nil
+	c.url = ""
+	c.token = ""
+	c.extensionPath = ""
+	c.backend = backend
+	c.mu.Unlock()
+	if server != nil {
+		server.Close()
+	}
+}
+
 func computerBackend() computer.Backend {
 	key := os.Getenv("INSTABOX_API_KEY")
 	id := os.Getenv("INSTABOX_MACHINE_ID")
@@ -41,10 +64,11 @@ type ComputerStatus struct {
 }
 
 func (c *Computer) Status(ctx context.Context) (ComputerStatus, error) {
-	if c.backend == nil {
+	backend := c.getBackend()
+	if backend == nil {
 		return ComputerStatus{State: "unconfigured"}, nil
 	}
-	info, err := c.backend.Info(ctx)
+	info, err := backend.Info(ctx)
 	if err != nil {
 		return ComputerStatus{}, err
 	}
@@ -60,18 +84,19 @@ type ComputerView struct {
 }
 
 func (c *Computer) Connect(ctx context.Context, takeControl bool) (ComputerView, error) {
-	if c.backend == nil {
-		return ComputerView{}, errors.New("远程电脑未配置：设置 INSTABOX_API_KEY 和 INSTABOX_MACHINE_ID 后重启应用")
+	backend := c.getBackend()
+	if backend == nil {
+		return ComputerView{}, errors.New("远程电脑未配置：请在 Settings → Computer 中连接 Instabox")
 	}
-	if err := c.backend.Wake(ctx); err != nil {
+	if err := backend.Wake(ctx); err != nil {
 		return ComputerView{}, err
 	}
-	info, err := c.backend.Info(ctx)
+	info, err := backend.Info(ctx)
 	if err != nil {
 		return ComputerView{}, err
 	}
 	viewOnly := !takeControl
-	u, err := c.backend.DesktopURL(ctx, viewOnly)
+	u, err := backend.DesktopURL(ctx, viewOnly)
 	if err != nil {
 		return ComputerView{}, err
 	}

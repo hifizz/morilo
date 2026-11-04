@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "dev:setup": "bash scripts/setup-dev-signing.sh",
-    "build": "mygo build",
+    "prepare:runtime": "node scripts/prepare-runtime.mjs",
+    "build": "npm run prepare:runtime && mygo build",
     "generate": "mygo generate"
   },
   "devDependencies": {

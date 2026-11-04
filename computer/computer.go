@@ -14,9 +14,21 @@ type Backend interface {
 }
 
 type Info struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	State string `json:"state"`
+	ID      string  `json:"id"`
+	Name    string  `json:"name"`
+	State   string  `json:"state"`
+	Spec    Spec    `json:"spec"`
+	Runtime Runtime `json:"runtime"`
+}
+
+type Spec struct {
+	VCPUs             int `json:"vcpus"`
+	MemMiB            int `json:"memMiB"`
+	PersistentDiskGiB int `json:"persistentDiskGiB"`
+}
+
+type Runtime struct {
+	Ready bool `json:"ready"`
 }
 
 type Command struct {

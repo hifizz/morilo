@@ -19,23 +19,31 @@ Morilo is an early-stage desktop AI app built with Go, MyGo and React. Keep sepa
 - **Optional connected apps** — GitHub and Vercel integrations through Composio, limited to the implemented read-only tool allowlist.
 - **Optional remote computer** — connect an Instabox machine, watch its desktop and opt into interactive control.
 
-> **Project status:** macOS is the currently validated desktop target. Some screens, including billing, referrals, routines and parts of the vault, are demo or local-only UI rather than complete production services. Browser preview uses simulated replies; real agent execution requires the desktop app and a configured model provider.
+> **Project status:** macOS is the currently validated desktop target. Browser preview uses simulated replies; real agent execution requires the desktop app and a configured model provider. Demo billing, referral, permissions and vault settings were removed. Scheduled tasks are not implemented.
+
+## Install
+
+Packages target **macOS 13.5 or later**, on Apple Silicon and Intel. They include **Node.js 24.22.2 and Pi 1.5.0**; end users do not need Go, Node or Pi installed.
+
+[GitHub Actions](https://github.com/hifizz/morilo/actions/workflows/build.yml) produces preview packages for `main` and `develop`. Unsigned packages are marked as test builds. Signed, notarized versions are published through [GitHub Releases](https://github.com/hifizz/morilo/releases) once the maintainer configures Apple signing credentials. See [distribution details](docs/distribution.md).
 
 ## Run locally
 
 ### Requirements
 
 - macOS for the validated native workflow.
-- Go **1.27.3 or later**.
-- Node.js **24** and npm (the tested development setup).
-- A Pi CLI supporting `pi --mode rpc`, available as `pi` on `PATH` (**1.5.0** is the tested version).
+- Go per [`go.mod`](go.mod) (**1.27.3**).
+- Node.js per [`.node-version`](.node-version) (**24.22.2**) and npm.
 - Access to a model provider for real chat.
+
+A globally installed Pi CLI is **not** required: `npm run prepare:runtime` stages the bundled Node + pinned Pi runtime used by builds, and development falls back to an installed `pi` only when the prepared runtime is absent.
 
 ```bash
 git clone https://github.com/hifizz/morilo.git
 cd morilo
 npm ci
 npm --prefix frontend ci
+npm run prepare:runtime
 npm run dev
 ```
 
@@ -43,21 +51,23 @@ On macOS, `npm run dev` prepares a dedicated local development signing identity,
 
 ### Configure a model provider
 
-Opening the UI does not automatically configure model access. Morilo initializes its own Pi configuration under the app's user-data directory; it does **not** use your global Pi configuration.
+On first launch, onboarding asks for your model service: pick a preset (OpenAI, Anthropic, Google Gemini, Ollama or OpenAI-compatible), adjust the protocol and base URL if needed, paste your API key, and enter a model ID manually or via "Load models". **Test and save** performs one short real request against your provider — it may incur a charge on your own account. Check "no API key" for local providers. Advanced settings cover image support, reasoning, context window and max output tokens; they must match what your provider actually supports.
+
+Keys live only in the OS credential store. Morilo writes a managed, non-secret Pi configuration under `<userData>/pi-agent/managed`; it does not use or modify your global Pi configuration, and `connections.json` stores only opaque credential references, never keys.
 
 | Build | Pi configuration directory |
 | --- | --- |
 | Development | `~/Library/Application Support/Morilo Dev/pi-agent/` |
 | Packaged app | `~/Library/Application Support/Morilo/pi-agent/` |
 
-The relevant files are `models.json`, `settings.json` and `auth.json`. Missing files are initialized when a chat session starts; see the defaults in [`agent.go`](agent.go).
-
-The shipped defaults target a project-specific OpenAI-compatible relay and the `swe-2` model. You must provide access to that relay **or replace the provider, model and authentication configuration with your own Pi-compatible setup**. The default authentication command reads the `morilo-relay` service from macOS Keychain; no API key is bundled with the app. Keep credentials out of the repository.
+A valid pre-existing per-app `pi-agent` configuration is retained and treated as a completed setup; nothing is migrated or deleted.
 
 ### Optional services
 
 - **GitHub / Vercel:** open **Connect apps** in the desktop app and configure a Composio project API key. The app stores that key in the system credential store. Connected-account permissions still matter: Morilo's tool allowlist does not narrow the underlying token's permissions.
-- **Instabox:** provide `INSTABOX_API_KEY` and `INSTABOX_MACHINE_ID` in the environment before launching the app. `INSTABOX_API_URL` is optional. Without this configuration, agent tools run locally in `~/morilo-workspace`.
+- **Instabox:** connect in **Settings → Computer** (or during onboarding) with a personal Instabox API key, then pick one of your machines. **Create remote computer** asks for a name, shows the reported spec, and requires an explicit confirmation — usage fees are charged by Instabox on your own account. A pending creation keeps a durable record you can resume or dismiss; dismissing only stops tracking, it never deletes the machine. The same form handles key rotation (blocked while a creation is pending). `INSTABOX_API_KEY`/`INSTABOX_MACHINE_ID`/`INSTABOX_API_URL` environment variables are still honored as a legacy fallback for existing setups, but are not the default path.
+
+  Modes: **chat** (fresh default — no file or app tools), **local** (agent tools run in `~/morilo-workspace` with your full OS permissions — it is not a sandbox and requires explicit confirmation), or **remote** (your Instabox machine).
 
 ## Development commands
 
@@ -67,11 +77,11 @@ The shipped defaults target a project-specific OpenAI-compatible relay and the `
 | `npm run build` | Build the frontend and package the desktop app |
 | `npm run generate` | Regenerate the typed Go-to-TypeScript bindings |
 | `npm --prefix frontend run dev` | Browser-only preview with simulated replies |
-| `CGO_ENABLED=0 go test ./... -skip '^TestPiSessionRoundTrip$'` | Run tests without the live model round trip |
-| `go test . -run '^TestPiSessionRoundTrip$' -v` | Run the real Pi/model round trip; requires configured credentials and may incur provider charges |
+| `CGO_ENABLED=0 go test ./...` | Run offline business tests; paid model calls are skipped by default |
+| `MORILO_LIVE_TEST=1 go test . -run '^TestPiSessionRoundTrip$' -v` | Opt into the legacy Pi configuration round trip; requires credentials and may incur provider charges |
 | `npm --prefix frontend run test:markdown` | Check Markdown rendering and unsafe-content handling |
 
-macOS packages are written under `build/darwin-arm64/` on the tested Apple Silicon setup. Local builds are not automatically notarized for public distribution.
+macOS packages are written under `build/darwin-arm64/` on the tested Apple Silicon setup. Local builds are not automatically notarized for public distribution; see [distribution and release notes](docs/distribution.md) for CI artifacts, signing secrets and the release flow.
 
 ## Project layout
 

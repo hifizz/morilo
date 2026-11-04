@@ -1,0 +1,192 @@
+name: Build Morilo
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['**']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  checks:
+    runs-on: macos-15
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      label: ${{ steps.metadata.outputs.label }}
+      release: ${{ steps.metadata.outputs.release }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - name: Identify build
+        id: metadata
+        run: node scripts/release-metadata.mjs
+      - name: Install build dependencies
+        run: |
+          npm ci
+          npm --prefix frontend ci
+      - name: Verify business logic and bindings
+        run: |
+          go test ./...
+          npm run generate
+          git diff --exit-code -- frontend/src/mygo.ts
+          npm --prefix frontend run test:markdown
+          npm --prefix frontend run build
+
+  package:
+    needs: checks
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      BUILD_VERSION: ${{ needs.checks.outputs.version }}
+      BUILD_LABEL: ${{ needs.checks.outputs.label }}
+      BUILD_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+            runtime/package-lock.json
+      - name: Install build dependencies
+        run: |
+          npm ci
+          npm --prefix frontend ci
+      - name: Configure optional Developer ID signing
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo 'MORILO_SIGNING_STATUS=unsigned' >> "$GITHUB_ENV"
+          for name in MACOS_CERTIFICATE_P12 MACOS_CERTIFICATE_PASSWORD MACOS_SIGN_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo 'Building an unsigned test package: signing credentials are incomplete.'
+              exit 0
+            fi
+          done
+          keychain="$RUNNER_TEMP/morilo-signing.keychain-db"
+          certificate="$RUNNER_TEMP/morilo-signing.p12"
+          keychain_password="$(openssl rand -hex 24)"
+          echo "::add-mask::$keychain_password"
+          umask 077
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          xcrun notarytool store-credentials morilo-ci --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --keychain "$keychain"
+          echo "MORILO_SIGN_IDENTITY=$MACOS_SIGN_IDENTITY" >> "$GITHUB_ENV"
+          echo 'MORILO_NOTARY_PROFILE=morilo-ci' >> "$GITHUB_ENV"
+          echo "MORILO_NOTARY_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo 'MORILO_SIGNING_STATUS=notarized' >> "$GITHUB_ENV"
+      - name: Build self-contained app and disk image
+        run: npm run build -- -platform "darwin/$BUILD_ARCH"
+      - name: Verify bundled runtime without installed Node or Pi
+        env:
+          MORILO_PACKAGED_RESOURCES: ${{ github.workspace }}/build/darwin-${{ matrix.arch }}/Morilo.app/Contents/Resources
+        run: |
+          codesign --verify --deep --strict "build/darwin-$BUILD_ARCH/Morilo.app"
+          go test . -run '^TestPackagedModelConnection$' -count=1
+      - name: Name packages and generate checksums
+        run: |
+          set -euo pipefail
+          mkdir -p build/artifacts
+          filename="morilo-$BUILD_VERSION-$BUILD_LABEL-$BUILD_ARCH-$MORILO_SIGNING_STATUS.dmg"
+          mv "build/darwin-$BUILD_ARCH/morilo-$BUILD_VERSION-$BUILD_ARCH.dmg" "build/artifacts/$filename"
+          cd build/artifacts
+          shasum -a 256 "$filename" > "$filename.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: morilo-${{ needs.checks.outputs.label }}-${{ matrix.arch }}
+          path: build/artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/morilo-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/morilo-signing.p12"
+
+  release:
+    needs: [checks, package]
+    if: github.ref_type == 'tag' && needs.checks.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: morilo-${{ needs.checks.outputs.label }}-*
+          path: release
+          merge-multiple: true
+      - name: Require both notarized architectures
+        env:
+          BUILD_VERSION: ${{ needs.checks.outputs.version }}
+          BUILD_LABEL: ${{ needs.checks.outputs.label }}
+        run: |
+          for arch in arm64 amd64; do
+            file="release/morilo-$BUILD_VERSION-$BUILD_LABEL-$arch-notarized.dmg"
+            if [[ ! -f "$file" ]]; then
+              echo '::error::A public Release requires Developer ID signing and Apple notarization. Configure the six signing secrets documented in docs/distribution.md. Unsigned test packages remain available as Actions artifacts.'
+              exit 1
+            fi
+          done
+          cd release
+          sha256sum -c -- *.sha256
+      - name: Publish version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.checks.outputs.prerelease }}
+        run: |
+          args=(--verify-tag --title "$RELEASE_TAG" --generate-notes)
+          if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release/* --clobber
+          else
+            gh release create "$RELEASE_TAG" release/* "${args[@]}"
+          fi
