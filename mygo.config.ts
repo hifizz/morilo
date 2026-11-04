@@ -1,13 +1,13 @@
 import { defineConfig } from "mygo-cli";
 
 export default defineConfig({
-  name: "Grokbot",
-  slug: "grokbot",
-  identifier: "dev.grokbot.app",
+  name: "Morilo",
+  slug: "morilo",
+  identifier: "dev.morilo.app",
   version: "0.1.0",
   macos: {
     infoPlist: {
-      NSMicrophoneUsageDescription: "Grokbot uses the microphone for the input level test in Settings.",
+      NSMicrophoneUsageDescription: "Morilo uses the microphone for the input level test in Settings.",
     },
   },
 

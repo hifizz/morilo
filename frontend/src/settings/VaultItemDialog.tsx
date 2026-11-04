@@ -68,7 +68,7 @@ export function VaultItemDialog({ kind, onClose, onSave, onImport, onNotify }: V
             <label className="field-label">{t('密码', 'Password')}<TextField name="password" type="password" autoComplete="current-password" spellCheck={false} /></label>
             <label className="field-label">{t('提示（可选）', 'Hints (Optional)')}<TextField name="hints" spellCheck={spellcheck} /></label>
             <p className="field-help">{t('告诉 Bot 何时使用此条目', 'Tell Bot when to use this entry')}</p>
-            <p className="field-help">{t('Grok Bot 可以使用此登录信息代你登录', 'Grok Bot can use this login to sign in for you')}</p>
+            <p className="field-help">{t('Morilo 可以使用此登录信息代你登录', 'Morilo can use this login to sign in for you')}</p>
           </>
         )}
         {kind === 'card' && (
@@ -106,7 +106,7 @@ export function VaultItemDialog({ kind, onClose, onSave, onImport, onNotify }: V
           </>
         )}
         <footer className="dialog-footer vault-form__footer">
-          <span>{kind === 'card' ? t('Grok Bot 不会看到卡号', 'Grok Bot never sees the number') : ''}</span>
+          <span>{kind === 'card' ? t('Morilo 不会看到卡号', 'Morilo never sees the number') : ''}</span>
           <Button variant="secondary" onClick={onClose}>{t('取消', 'Cancel')}</Button>
           <Button type="submit" disabled={kind === 'card' && cardNumber.replace(/\s/g, '').length < 4}>{kind === 'login' ? t('保存登录信息', 'Save login') : kind === 'card' ? t('保存卡片', 'Save card') : t('保存联系信息', 'Save contact info')}</Button>
         </footer>

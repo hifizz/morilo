@@ -281,7 +281,7 @@ export function GeneralSettings({ onNotify }: SettingsPageProps) {
 
       <SettingSectionLabel>{t('导入记忆', 'Import memory')}</SettingSectionLabel>
       <SettingCard>
-        <SettingRow title={t('导入记忆到 Grok Bot', 'Import memory to Grok Bot')} description={t('把其他 AI 助手的偏好与上下文迁移到当前本地资料，仅支持 .txt / .md / .json', 'Bring preferences and context from another AI assistant into this local profile (.txt / .md / .json only)')}>
+        <SettingRow title={t('导入记忆到 Morilo', 'Import memory to Morilo')} description={t('把其他 AI 助手的偏好与上下文迁移到当前本地资料，仅支持 .txt / .md / .json', 'Bring preferences and context from another AI assistant into this local profile (.txt / .md / .json only)')}>
           <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}><FileUp size={14} />{t('选择文件', 'Choose file')}</Button>
         </SettingRow>
         {pendingImport && (

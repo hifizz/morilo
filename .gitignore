@@ -15,7 +15,7 @@ dist-ssr
 # MyGo
 .mygo/
 build/
-/grokbot
+/morilo
 
 # Editor directories and files
 .vscode/*

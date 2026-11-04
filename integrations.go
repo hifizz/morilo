@@ -93,7 +93,7 @@ func newIntegrationsAt(dir string, validateProfile func(string) error) (*Integra
 	if validateProfile == nil {
 		return nil, errors.New("integrations require local profile validation")
 	}
-	secrets := mygo.Secrets.Service("dev.grokbot.app.integrations")
+	secrets := mygo.Secrets.Service("dev.morilo.app.integrations")
 	s := &Integrations{
 		validateProfile: validateProfile,
 		configPath:      filepath.Join(dir, "integrations.json"),
@@ -119,7 +119,7 @@ func newIntegrationsAt(dir string, validateProfile func(string) error) (*Integra
 	if runtime.GOOS == "darwin" && mygo.IsDev() {
 		s.secretGet = func() ([]byte, error) {
 			value, err := runDevelopmentCredentialCommand([]string{
-				"find-generic-password", "-s", "dev.grokbot.app.integrations",
+				"find-generic-password", "-s", "dev.morilo.app.integrations",
 				"-a", "composio-api-key", "-g",
 			}, "")
 			if err != nil {
@@ -129,7 +129,7 @@ func newIntegrationsAt(dir string, validateProfile func(string) error) (*Integra
 		}
 		s.secretSet = func(value []byte) error {
 			// Hex on stdin avoids both command injection and secrets in argv.
-			input := "add-generic-password -U -s dev.grokbot.app.integrations -a composio-api-key -X " + hex.EncodeToString(value) + "\n"
+			input := "add-generic-password -U -s dev.morilo.app.integrations -a composio-api-key -X " + hex.EncodeToString(value) + "\n"
 			_, err := runDevelopmentCredentialCommand([]string{"-i"}, input)
 			return err
 		}
@@ -408,12 +408,12 @@ func (s *Integrations) Connect(ctx context.Context, profileID, appID string) (In
 	id := s.authConfigs[appID]
 	if id == "" {
 		auth := map[string]any{
-			"type": "use_composio_managed_auth", "name": "Grokbot GitHub read-only demo",
+			"type": "use_composio_managed_auth", "name": "Morilo GitHub read-only demo",
 			"credentials": map[string]any{"scopes": "read:user"},
 		}
 		if appID == "vercel" {
 			auth = map[string]any{
-				"type": "use_custom_auth", "authScheme": "API_KEY", "name": "Grokbot Vercel", "credentials": map[string]any{},
+				"type": "use_custom_auth", "authScheme": "API_KEY", "name": "Morilo Vercel", "credentials": map[string]any{},
 			}
 		}
 		body := map[string]any{"toolkit": map[string]any{"slug": appID}, "auth_config": auth}

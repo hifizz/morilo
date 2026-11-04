@@ -19,7 +19,7 @@ interface SettingsContextValue {
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
 
-const STORAGE_KEY = 'grokbot-settings'
+const STORAGE_KEY = 'morilo-settings'
 const MAX_MEMORY = 64 << 10
 
 const fallbackSnapshot = (): SettingsSnapshot => {

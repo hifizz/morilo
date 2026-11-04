@@ -57,7 +57,7 @@ export function PermissionsSettings({ onNotify }: SettingsPageProps) {
 
   return (
     <div className="settings-scroll">
-      <SettingCard><div className="setting-row"><div className="setting-row__copy"><strong>{t('自动审核', 'Auto-Review')}</strong><p>{t('根据自定义规则审核 Grok Bot 的操作', 'Review Grok Bot actions based on custom rules')}</p></div><Switch label={t('自动审核', 'Auto-review')} checked={autoReview} onCheckedChange={setAutoReview} /></div></SettingCard>
+      <SettingCard><div className="setting-row"><div className="setting-row__copy"><strong>{t('自动审核', 'Auto-Review')}</strong><p>{t('根据自定义规则审核 Morilo 的操作', 'Review Morilo actions based on custom rules')}</p></div><Switch label={t('自动审核', 'Auto-review')} checked={autoReview} onCheckedChange={setAutoReview} /></div></SettingCard>
       {renderGroup('ask', t('始终询问', 'Always Ask'), t('操作符合这些规则时暂停并询问', 'Stop and ask when an action matches these rules'))}
       {renderGroup('allow', t('无需询问即可允许', 'Allow without Asking'), t('操作符合这些规则时自动继续', 'Continue automatically when an action matches these rules'))}
     </div>

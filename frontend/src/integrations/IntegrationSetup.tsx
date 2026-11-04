@@ -31,7 +31,7 @@ export function IntegrationSetup({ store }: { store: IntegrationStore }) {
           <Button variant="ghost" size="sm" disabled={store.busy} onClick={() => setEditing(true)}>{t('更换密钥', 'Change key')}</Button>
         )}
       </div>
-      {!store.desktop && <p>{t('请在 Grokbot 桌面应用中配置并连接。浏览器预览不会模拟已连接账户。', 'Open the Grokbot desktop app to configure and connect. Browser preview does not simulate connected accounts.')}</p>}
+      {!store.desktop && <p>{t('请在 Morilo 桌面应用中配置并连接。浏览器预览不会模拟已连接账户。', 'Open the Morilo desktop app to configure and connect. Browser preview does not simulate connected accounts.')}</p>}
       {showForm && (
         <form onSubmit={(event) => void save(event)}>
           <p>{t('仅填写 Composio 项目 API Key，验证后保存在系统钥匙串。不要填写 GitHub 或 Vercel Token。', 'Enter only your Composio project API key. It is validated and stored in the system keychain. Do not enter a GitHub or Vercel token.')}</p>

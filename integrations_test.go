@@ -296,9 +296,9 @@ func TestIntegrationsConnectAuthConfigsAndPersistence(t *testing.T) {
 					if r.Method != "POST" {
 						t.Errorf("wrong auth config method: %s", r.Method)
 					}
-					auth := map[string]any{"type": "use_composio_managed_auth", "name": "Grokbot GitHub read-only demo", "credentials": map[string]any{"scopes": "read:user"}}
+					auth := map[string]any{"type": "use_composio_managed_auth", "name": "Morilo GitHub read-only demo", "credentials": map[string]any{"scopes": "read:user"}}
 					if app == "vercel" {
-						auth = map[string]any{"type": "use_custom_auth", "authScheme": "API_KEY", "name": "Grokbot Vercel", "credentials": map[string]any{}}
+						auth = map[string]any{"type": "use_custom_auth", "authScheme": "API_KEY", "name": "Morilo Vercel", "credentials": map[string]any{}}
 					}
 					want := map[string]any{"toolkit": map[string]any{"slug": app}, "auth_config": auth}
 					if body := integrationTestJSON(t, r); !reflect.DeepEqual(body, want) {

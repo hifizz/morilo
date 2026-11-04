@@ -2,7 +2,7 @@ package main
 
 const devAcceptanceStart = `
 if (!window.mygo) throw new Error('Acceptance requires the native MyGo app');
-if (window.__grokbotAcceptance?.started && !window.__grokbotAcceptance.done) throw new Error('Acceptance is already running');
+if (window.__moriloAcceptance?.started && !window.__moriloAcceptance.done) throw new Error('Acceptance is already running');
 if (document.querySelector('.agent-status')) throw new Error('The current conversation is busy');
 if (document.querySelector('.composer textarea')?.value.trim()) throw new Error('The composer has an unsent draft');
 const waitFor = async (check) => {
@@ -19,7 +19,7 @@ const fill = (element, value) => {
   element.dispatchEvent(new Event('input', { bubbles: true }));
 };
 const prompt = '请通过我在“连接应用”里已经绑定的 GitHub 和 Vercel 做一次只读查询，并用中文汇总：\n1. 查询 GitHub 当前授权账号的用户名。\n2. 列出一个我可访问的 GitHub 仓库。\n3. 再查询这个仓库的详情，给出默认分支和描述。\n4. 查询这个仓库的一条 Issue，给出编号和标题；没有就明确说没有。\n5. 列出一个 Vercel 项目。\n6. 查询这个项目最近的一条部署，给出部署 ID 和状态。\n请让每一项都有本次真实工具查询的依据，失败要如实说明。只读取，不修改、创建、删除、部署任何资源，也不要读取或展示密钥和环境变量。';
-const state = window.__grokbotAcceptance = { started: false, done: false, events: [], prompt, startedAt: new Date().toISOString() };
+const state = window.__moriloAcceptance = { started: false, done: false, events: [], prompt, startedAt: new Date().toISOString() };
 const restores = [];
 try {
   document.querySelector('.integration-dialog .ds-dialog__floating-close')?.click();
@@ -75,7 +75,7 @@ try {
 `
 
 const devAcceptanceStatus = `
-const state = window.__grokbotAcceptance;
+const state = window.__moriloAcceptance;
 if (!state) return { started: false, done: false };
 return {
   ...state,

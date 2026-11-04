@@ -7,7 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"grokbot/computer"
+	"github.com/hifizz/morilo/computer"
 )
 
 type Computer struct {

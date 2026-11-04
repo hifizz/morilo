@@ -75,7 +75,7 @@ export function VaultSettings({ onNotify }: SettingsPageProps) {
         {visible.map((item) => <div className="vault-item" key={item.id}>{item.kind === 'login' ? <KeyRound size={18} /> : item.kind === 'card' ? <CreditCard size={18} /> : <UserRound size={18} />}<span><strong>{item.title}</strong><small>{item.subtitle}</small></span><IconButton label={t(`删除 ${item.title}`, `Delete ${item.title}`)} onClick={() => { setItems((current) => current.filter((entry) => entry.id !== item.id)); onNotify(t('保险库条目已删除', 'Vault entry deleted')) }}><Trash2 size={15} /></IconButton></div>)}
         {visible.length === 0 && <div className="vault-empty"><p>{query ? t('没有匹配的保险库条目。', 'No matching Vault entries.') : emptyText}</p></div>}
       </div>
-      <p className="vault-privacy">{t('Grok Bot 不会看到已保存卡片的号码或安全码。它可以看到登录和联系信息，以便代你填写。', "Grok Bot never sees a saved card's number or security code. It can see logins and contact info so it can type them in for you.")}</p>
+      <p className="vault-privacy">{t('Morilo 不会看到已保存卡片的号码或安全码。它可以看到登录和联系信息，以便代你填写。', "Morilo never sees a saved card's number or security code. It can see logins and contact info so it can type them in for you.")}</p>
       </div>
       {editor && <VaultItemDialog kind={editor} onClose={() => setEditor(null)} onSave={saveItem} onImport={importCsv} onNotify={onNotify} />}
     </>

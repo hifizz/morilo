@@ -188,11 +188,11 @@ func startPi(conversationID string, computer *Computer, apps ...integrationEndpo
 	}
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = workdir
-	// Grokbot keeps its own pi agent directory: providers, credentials and
+	// Morilo keeps its own pi agent directory: providers, credentials and
 	// settings stay apart from the user's global ~/.pi/agent.
 	cmd.Env = piEnv(agentDir, endpoint)
 	for _, endpoint := range apps {
-		cmd.Env = append(cmd.Env, "GROKBOT_APPS_URL="+endpoint.url, "GROKBOT_APPS_TOKEN="+endpoint.token)
+		cmd.Env = append(cmd.Env, "MORILO_APPS_URL="+endpoint.url, "MORILO_APPS_TOKEN="+endpoint.token)
 	}
 	cmd.Stderr = log.Writer()
 	stdin, err := cmd.StdinPipe()
@@ -220,7 +220,7 @@ func startPi(conversationID string, computer *Computer, apps ...integrationEndpo
 func piEnv(agentDir string, endpoint computerEndpoint) []string {
 	env := make([]string, 0, len(os.Environ())+7)
 	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "INSTABOX_API_KEY=") || strings.HasPrefix(e, "COMPOSIO_API_KEY=") || strings.HasPrefix(e, "GROKBOT_APPS_URL=") || strings.HasPrefix(e, "GROKBOT_APPS_TOKEN=") {
+		if strings.HasPrefix(e, "INSTABOX_API_KEY=") || strings.HasPrefix(e, "COMPOSIO_API_KEY=") || strings.HasPrefix(e, "MORILO_APPS_URL=") || strings.HasPrefix(e, "MORILO_APPS_TOKEN=") {
 			continue
 		}
 		env = append(env, e)
@@ -228,19 +228,19 @@ func piEnv(agentDir string, endpoint computerEndpoint) []string {
 	env = append(env, "PI_CODING_AGENT_DIR="+agentDir)
 	if endpoint.url != "" {
 		env = append(env,
-			"GROKBOT_COMPUTER_URL="+endpoint.url,
-			"GROKBOT_COMPUTER_TOKEN="+endpoint.token)
+			"MORILO_COMPUTER_URL="+endpoint.url,
+			"MORILO_COMPUTER_TOKEN="+endpoint.token)
 	}
 	return env
 }
 
-// piWorkdir is where the agent's tools run: ~/grokbot-workspace.
+// piWorkdir is where the agent's tools run: ~/morilo-workspace.
 func piWorkdir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, "grokbot-workspace")
+	dir := filepath.Join(home, "morilo-workspace")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -300,7 +300,7 @@ func piAgentDir() (string, error) {
 		"auth.json": `{
   "relay": {
     "type": "api_key",
-    "key": "!/usr/bin/security find-generic-password -s grokbot-relay -w"
+    "key": "!/usr/bin/security find-generic-password -s morilo-relay -w"
   }
 }
 `,

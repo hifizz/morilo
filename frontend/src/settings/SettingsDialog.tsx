@@ -33,7 +33,7 @@ export function SettingsDialog({ initialSection, onClose, onNotify }: SettingsDi
   const titles: Record<SettingsSection, string> = Object.fromEntries(navigation.map((n) => [n.id, t(n.zh, n.en)])) as Record<SettingsSection, string>
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title={t('Grok Bot 设置', 'Grok Bot Settings')} closeLabel={t('关闭', 'Close')} hideHeader className="settings-dialog">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title={t('Morilo 设置', 'Morilo Settings')} closeLabel={t('关闭', 'Close')} hideHeader className="settings-dialog">
       <div className="settings-layout">
         <nav className="settings-nav" aria-label={t('设置导航', 'Settings navigation')}>
           {navigation.map((item) => {

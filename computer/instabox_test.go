@@ -268,7 +268,7 @@ func TestInstaboxScreenshotAndDesktopURL(t *testing.T) {
 	if string(shot) != string(png) {
 		t.Fatal("screenshot bytes mismatch")
 	}
-	want := []string{"scrot", "-o", "/tmp/grokbot-screen.png"}
+	want := []string{"scrot", "-o", "/tmp/morilo-screen.png"}
 	if !slices.Equal(scrotArgv, want) {
 		t.Fatalf("scrot argv = %v, want %v", scrotArgv, want)
 	}

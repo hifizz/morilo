@@ -27,7 +27,7 @@ export function BillingSettings({ onNotify }: SettingsPageProps) {
       <SettingSectionLabel>{t('管理套餐', 'Manage Plan')}</SettingSectionLabel>
       <SettingCard>
         <SettingRow title={t('当前套餐：高级版', 'Current plan: Premium')} description={t('在 cursor.com 查看、更改或升级套餐', 'View, change, or upgrade your plan on cursor.com')}><Button variant="secondary" onClick={() => onNotify(t('套餐管理为演示入口', 'Plan management is a demo entry'))}>{t('管理套餐', 'Manage Plan')}<ArrowUpRight size={14} /></Button></SettingRow>
-        <SettingRow title={t('在 Grok 管理账单', 'Manage billing on Grok')}><Button variant="secondary" onClick={() => onNotify(t('账单管理为演示入口', 'Billing management is a demo entry'))}>{t('管理账单', 'Manage Billing')}<ArrowUpRight size={14} /></Button></SettingRow>
+        <SettingRow title={t('在 Morilo 管理账单', 'Manage billing on Morilo')}><Button variant="secondary" onClick={() => onNotify(t('账单管理为演示入口', 'Billing management is a demo entry'))}>{t('管理账单', 'Manage Billing')}<ArrowUpRight size={14} /></Button></SettingRow>
       </SettingCard>
       {referralOpen && <ReferralDialog onClose={() => setReferralOpen(false)} onNotify={onNotify} />}
     </div>

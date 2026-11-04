@@ -216,7 +216,7 @@ func (m *Instabox) startDesktop(ctx context.Context) error {
 	return nil
 }
 
-const screenshotPath = "/tmp/grokbot-screen.png"
+const screenshotPath = "/tmp/morilo-screen.png"
 
 func (m *Instabox) Screenshot(ctx context.Context) ([]byte, error) {
 	m.shotMu.Lock()

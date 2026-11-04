@@ -12,8 +12,8 @@ concern.
 The identity lives in a dedicated development keychain, not the login
 keychain:
 
-- `~/Library/Application Support/Grokbot Development/signing.keychain-db`
-- `~/Library/Application Support/Grokbot Development/signing-password`
+- `~/Library/Application Support/Morilo Development/signing.keychain-db`
+- `~/Library/Application Support/Morilo Development/signing-password`
 
 Both live outside the repo; no private key material is ever written to the
 tree. The directory is 0700 and the password file 0600 — a random value
@@ -32,7 +32,7 @@ user keychain search list so `codesign` finds it.
   every OS prompt: permission grants stored against a previously
   signed/ad-hoc build can still need a one-time permission migration or OS
   authorization on first use under the new identity.
-- Set `GROKBOT_DEV_SIGN_IDENTITY` to sign dev builds with a different
+- Set `MORILO_DEV_SIGN_IDENTITY` to sign dev builds with a different
   existing identity instead.
 - Non-macOS: `setup-dev-signing.sh` exits immediately and `dev.sh` passes
   through to plain `mygo dev`.

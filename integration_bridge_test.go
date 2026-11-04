@@ -89,7 +89,7 @@ func TestIntegrationBridgeAuthenticationMethodsAndProfileIsolation(t *testing.T)
 		t.Fatal("unknown bridge profile accepted")
 	}
 	source, err := os.ReadFile(first.path)
-	if err != nil || strings.Contains(string(source), first.token) || strings.Contains(string(source), "fake-key") || !strings.Contains(string(source), "GROKBOT_APPS_TOKEN") {
+	if err != nil || strings.Contains(string(source), first.token) || strings.Contains(string(source), "fake-key") || !strings.Contains(string(source), "MORILO_APPS_TOKEN") {
 		t.Fatalf("unsafe or missing extension: %v", err)
 	}
 	info, _ := os.Stat(first.path)

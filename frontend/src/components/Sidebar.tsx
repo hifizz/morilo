@@ -60,13 +60,13 @@ export function Sidebar({ agents, conversations, activeId, collapsed, mobile = f
       <button
         type="button"
         className={`workspace-brand ${activeId === 'default' ? 'is-active' : ''}`}
-        title={t('打开 Grok Bot 默认会话', 'Open the default Grok Bot conversation')}
-        aria-label={t('打开 Grok Bot 默认会话', 'Open the default Grok Bot conversation')}
+        title={t('打开 Morilo 默认会话', 'Open the default Morilo conversation')}
+        aria-label={t('打开 Morilo 默认会话', 'Open the default Morilo conversation')}
         aria-current={activeId === 'default' ? 'page' : undefined}
         onClick={() => onSelect('default')}
       >
         <AgentAvatar color="white" size={48} badge />
-        {!collapsed && <span>Grok Bot</span>}
+        {!collapsed && <span>Morilo</span>}
       </button>
 
       <nav className="conversation-list">
@@ -116,7 +116,7 @@ export function Sidebar({ agents, conversations, activeId, collapsed, mobile = f
             <IconButton label={t('连接应用', 'Connect Apps')} onClick={onOpenIntegrations} className="collapsed-footer-action">
               <LayoutGrid size={20} strokeWidth={1.6} />
             </IconButton>
-            <IconButton label={t('邀请好友使用 Grok Bot', 'Gift Grok Bot to a friend')} onClick={onOpenReferral} className="collapsed-footer-action">
+            <IconButton label={t('邀请好友使用 Morilo', 'Gift Morilo to a friend')} onClick={onOpenReferral} className="collapsed-footer-action">
               <Gift size={19} strokeWidth={1.6} />
             </IconButton>
           </>
@@ -137,7 +137,7 @@ export function Sidebar({ agents, conversations, activeId, collapsed, mobile = f
                 <IntegrationIcon icon="context7" size={16} />
               </span>
             </button>
-            <button type="button" className="gift-entry" aria-label={t('邀请好友使用 Grok Bot', 'Gift Grok Bot to a friend')} title={t('邀请好友使用 Grok Bot', 'Gift Grok Bot to a friend')} onClick={onOpenReferral}><Gift size={15} /></button>
+            <button type="button" className="gift-entry" aria-label={t('邀请好友使用 Morilo', 'Gift Morilo to a friend')} title={t('邀请好友使用 Morilo', 'Gift Morilo to a friend')} onClick={onOpenReferral}><Gift size={15} /></button>
           </div>
         )}
       </div>

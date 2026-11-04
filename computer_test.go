@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"grokbot/computer"
+	"github.com/hifizz/morilo/computer"
 )
 
 type fakeBackend struct {
@@ -302,26 +302,26 @@ func TestComputerStatusUnconfigured(t *testing.T) {
 func TestPiEnvStripsProviderKey(t *testing.T) {
 	t.Setenv("INSTABOX_API_KEY", "sekret")
 	t.Setenv("COMPOSIO_API_KEY", "csekret")
-	t.Setenv("GROKBOT_APPS_URL", "http://stale")
-	t.Setenv("GROKBOT_APPS_TOKEN", "stale")
+	t.Setenv("MORILO_APPS_URL", "http://stale")
+	t.Setenv("MORILO_APPS_TOKEN", "stale")
 	env := piEnv("/tmp/agent", computerEndpoint{url: "http://x", token: "tok"})
 	seen := map[string]bool{}
 	for _, e := range env {
 		k, _, _ := strings.Cut(e, "=")
 		seen[k] = true
-		for _, p := range []string{"INSTABOX_API_KEY=", "COMPOSIO_API_KEY=", "GROKBOT_APPS_URL=", "GROKBOT_APPS_TOKEN="} {
+		for _, p := range []string{"INSTABOX_API_KEY=", "COMPOSIO_API_KEY=", "MORILO_APPS_URL=", "MORILO_APPS_TOKEN="} {
 			if strings.HasPrefix(e, p) {
 				t.Fatalf("secret or stale bridge env leaked: %s", e)
 			}
 		}
 	}
-	for _, k := range []string{"PI_CODING_AGENT_DIR", "GROKBOT_COMPUTER_URL", "GROKBOT_COMPUTER_TOKEN"} {
+	for _, k := range []string{"PI_CODING_AGENT_DIR", "MORILO_COMPUTER_URL", "MORILO_COMPUTER_TOKEN"} {
 		if !seen[k] {
 			t.Fatalf("missing %s in pi environment", k)
 		}
 	}
 	for _, e := range piEnv("/tmp/agent", computerEndpoint{}) {
-		if strings.HasPrefix(e, "GROKBOT_COMPUTER_") || strings.HasPrefix(e, "INSTABOX_API_KEY=") {
+		if strings.HasPrefix(e, "MORILO_COMPUTER_") || strings.HasPrefix(e, "INSTABOX_API_KEY=") {
 			t.Fatalf("unconfigured env leaked: %s", e)
 		}
 	}

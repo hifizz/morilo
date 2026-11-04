@@ -81,10 +81,10 @@ export default function (pi: any) {
       ...definition,
       async execute(_toolCallId: string, params: any, signal: AbortSignal) {
         if (route === "desktop") checkDesktop(params);
-        const response = await fetch(`${process.env.GROKBOT_COMPUTER_URL}/${route}`, {
+        const response = await fetch(`${process.env.MORILO_COMPUTER_URL}/${route}`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${process.env.GROKBOT_COMPUTER_TOKEN}`,
+            Authorization: `Bearer ${process.env.MORILO_COMPUTER_TOKEN}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(params),

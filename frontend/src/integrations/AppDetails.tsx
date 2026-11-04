@@ -73,8 +73,8 @@ export function AppDetails({ app, store, onBack, onNotify }: AppDetailsProps) {
           <>
             <p className="integration-readonly">
               {t(
-                'Grokbot 仅开放只读工具，不会创建或修改仓库、议题、项目或部署。GitHub 默认只申请 read:user，不请求私有仓库权限；实际可见资源取决于账户已有授权。Vercel Token 在 Composio 授权页输入并由 Composio 保存，其原始权限由该 Token 决定。',
-                'Grokbot exposes read-only tools only; it cannot create or modify repositories, issues, projects, or deployments. GitHub requests only read:user by default, not private-repository access; visible resources depend on existing account grants. Enter your Vercel token on the Composio authorization page. Composio stores it, and its original permissions are determined by that token.',
+                'Morilo 仅开放只读工具，不会创建或修改仓库、议题、项目或部署。GitHub 默认只申请 read:user，不请求私有仓库权限；实际可见资源取决于账户已有授权。Vercel Token 在 Composio 授权页输入并由 Composio 保存，其原始权限由该 Token 决定。',
+                'Morilo exposes read-only tools only; it cannot create or modify repositories, issues, projects, or deployments. GitHub requests only read:user by default, not private-repository access; visible resources depend on existing account grants. Enter your Vercel token on the Composio authorization page. Composio stores it, and its original permissions are determined by that token.',
               )}
             </p>
             {(!store.configured || !store.desktop) && <IntegrationSetup store={store} />}

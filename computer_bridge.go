@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"grokbot/computer"
+	"github.com/hifizz/morilo/computer"
 )
 
 //go:embed computer/extension.ts

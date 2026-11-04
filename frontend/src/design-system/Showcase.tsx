@@ -13,7 +13,7 @@ export function DesignSystemShowcase() {
     <main className="ds-showcase">
       <header className="ds-showcase__header">
         <a href="/" aria-label="返回应用"><ArrowLeft size={19} /></a>
-        <div><p>GROK BOT / FOUNDATIONS</p><h1>Desktop Design System</h1></div>
+        <div><p>MORILO / FOUNDATIONS</p><h1>Desktop Design System</h1></div>
         <span>v1.0</span>
       </header>
       <div className="ds-showcase__body">

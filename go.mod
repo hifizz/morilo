@@ -1,4 +1,4 @@
-module grokbot
+module github.com/hifizz/morilo
 
 go 1.27.3
 

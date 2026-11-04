@@ -108,7 +108,7 @@ function ConversationApp({ profileID }: { profileID: string }) {
   useEffect(() => () => { window.clearTimeout(toastTimer.current); window.clearTimeout(replyTimer.current) }, [])
 
   // Restore persisted conversations and bots, then keep saving them.
-  const stateKey = `grokbot-state-${profileID}`
+  const stateKey = `morilo-state-${profileID}`
   const [loadError, setLoadError] = useState('')
   const [hydrated, setHydrated] = useState(false)
   const [loadRetry, setLoadRetry] = useState(0)

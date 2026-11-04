@@ -33,7 +33,7 @@ export function AccountMenu({ children, collapsed, onOpenSettings, onNotify }: A
               </DropdownMenu.SubContent>
             </DropdownMenu.Portal>
           </DropdownMenu.Sub>
-          <DropdownMenu.Item className={itemClass} onSelect={() => onNotify(t('移动端下载链接已复制（演示）', 'Mobile download link copied (demo)'))}><Smartphone size={16} />{t('获取 Grok Bot 移动版', 'Get Grok Bot for mobile')}</DropdownMenu.Item>
+          <DropdownMenu.Item className={itemClass} onSelect={() => onNotify(t('移动端下载链接已复制（演示）', 'Mobile download link copied (demo)'))}><Smartphone size={16} />{t('获取 Morilo 移动版', 'Get Morilo for mobile')}</DropdownMenu.Item>
           <DropdownMenu.Sub>
             <DropdownMenu.SubTrigger className={itemClass}><CircleHelp size={16} />{t('支持', 'Support')}<ChevronRight className="account-menu__chevron" size={14} /></DropdownMenu.SubTrigger>
             <DropdownMenu.Portal>
@@ -41,7 +41,7 @@ export function AccountMenu({ children, collapsed, onOpenSettings, onNotify }: A
                 <DropdownMenu.Item className={itemClass} onSelect={() => onNotify(t('帮助中心为演示入口', 'The Help Center is a demo entry'))}><CircleHelp size={15} />{t('帮助中心', 'Help Center')}</DropdownMenu.Item>
                 <DropdownMenu.Item className={itemClass} onSelect={() => onNotify(t('快捷键：Enter 发送，Esc 关闭浮层', 'Shortcuts: Enter to send, Esc to close dialogs'))}>{t('快捷键', 'Keyboard shortcuts')}</DropdownMenu.Item>
                 <DropdownMenu.Item className={itemClass} onSelect={() => onNotify(t('感谢反馈，演示反馈已记录', 'Thank you — demo feedback recorded'))}>{t('发送反馈', 'Send Feedback')}</DropdownMenu.Item>
-                <DropdownMenu.Item className={itemClass} onSelect={() => onNotify(t('Grok Bot 演示 · 版本 0.78.1', 'Grok Bot Demo · Version 0.78.1'))}>{t('关于', 'About')}</DropdownMenu.Item>
+                <DropdownMenu.Item className={itemClass} onSelect={() => onNotify(t('Morilo 演示 · 版本 0.78.1', 'Morilo Demo · Version 0.78.1'))}>{t('关于', 'About')}</DropdownMenu.Item>
               </DropdownMenu.SubContent>
             </DropdownMenu.Portal>
           </DropdownMenu.Sub>

@@ -13,7 +13,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if os.Getenv("MYGO_SELFTEST") != "" {
-		dir, err := os.MkdirTemp("", "grokbot-selftest-")
+		dir, err := os.MkdirTemp("", "morilo-selftest-")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -48,7 +48,7 @@ func main() {
 			settings.applyTheme(snapshot.Preferences.Theme)
 		}
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title:         "Grokbot",
+			Title:         "Morilo",
 			URL:           "/",
 			Width:         1280,
 			Height:        840,
@@ -103,10 +103,10 @@ func selftest(win *mygo.Window) {
 		log.Printf("selftest capture: %v", err)
 		return
 	}
-	if err := os.WriteFile("/tmp/grokbot-shot.png", png, 0o644); err != nil {
+	if err := os.WriteFile("/tmp/morilo-shot.png", png, 0o644); err != nil {
 		log.Printf("selftest write: %v", err)
 		return
 	}
 	count, _ := mygo.EvalAs[int](win.Page(), `return document.querySelectorAll('.message-row--agent').length`)
-	log.Printf("selftest done: /tmp/grokbot-shot.png, agent bubbles: %d", count)
+	log.Printf("selftest done: /tmp/morilo-shot.png, agent bubbles: %d", count)
 }

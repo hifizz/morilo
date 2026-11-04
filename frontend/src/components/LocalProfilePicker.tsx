@@ -32,7 +32,7 @@ export function LocalProfilePicker() {
     <div className="profile-picker">
       <div className="profile-picker__card">
         <h1>{t('选择本地资料', 'Choose a local profile')}</h1>
-        <p>{t('Grok Bot 使用本机资料记录，不连接云端账户', 'Grok Bot uses local profiles on this device — no cloud account')}</p>
+        <p>{t('Morilo 使用本机资料记录，不连接云端账户', 'Morilo uses local profiles on this device — no cloud account')}</p>
         {error && <p className="settings-error">{error}</p>}
         <div className="profile-picker__list">
           {profiles.map((p) => (

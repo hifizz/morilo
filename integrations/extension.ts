@@ -11,10 +11,10 @@ export default function (pi: any) {
     pi.registerTool({
       ...definition,
       async execute(_toolCallId: string, params: any, signal: AbortSignal) {
-        const response = await fetch(`${process.env.GROKBOT_APPS_URL}/${route}`, {
+        const response = await fetch(`${process.env.MORILO_APPS_URL}/${route}`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${process.env.GROKBOT_APPS_TOKEN}`,
+            Authorization: `Bearer ${process.env.MORILO_APPS_TOKEN}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(params),

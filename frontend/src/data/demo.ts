@@ -2,8 +2,8 @@ import type { Agent, Conversation, LibraryFile } from '@/types/chat'
 
 export const agents: Agent[] = [
   {
-    id: 'default', name: 'Grok Bot', color: 'white', role: '默认 Bot',
-    description: 'Grok Bot 是内置的默认助手，进入应用后即可直接开始对话，无需创建或配置。',
+    id: 'default', name: 'Morilo', color: 'white', role: '默认 Bot',
+    description: 'Morilo 是内置的默认助手，进入应用后即可直接开始对话，无需创建或配置。',
     capabilities: ['日常问答与任务整理', '跨会话协作', '技能与应用连接'],
   },
   {
@@ -36,7 +36,7 @@ export const agents: Agent[] = [
     description: '定期整理记录，生成轻松、有连续性的个人回顾。', capabilities: ['日记整理', '定期提醒', '每周回顾'],
   },
   {
-    id: 'grok', name: '探索 grok bot', color: 'purple', role: '自动化实验', variant: 8,
+    id: 'morilo', name: '探索 Morilo', color: 'purple', role: '自动化实验', variant: 8,
     description: '探索 Routine、技能和本地自动化的更多可能。', capabilities: ['Routine 设计', '技能实验', '流程自动化'],
   },
   {
@@ -119,9 +119,9 @@ function simpleConversation(agentId: string, title: string, preview: string, tex
 
 export const initialConversations: Conversation[] = [
   {
-    id: 'default', agentId: 'default', title: 'Grok Bot', preview: '默认 Bot 已准备好', time: '现在',
+    id: 'default', agentId: 'default', title: 'Morilo', preview: '默认 Bot 已准备好', time: '现在',
     messages: [
-      { id: 'default-welcome', sender: 'agent', text: '你好，我是 Grok Bot。这个默认会话已经为你准备好了，无需创建 Bot，直接告诉我你想做什么。' },
+      { id: 'default-welcome', sender: 'agent', text: '你好，我是 Morilo。这个默认会话已经为你准备好了，无需创建 Bot，直接告诉我你想做什么。' },
     ],
     tasks: [],
   },
@@ -147,7 +147,7 @@ export const initialConversations: Conversation[] = [
   { id: 'cto', agentId: 'cto', title: 'CTO', preview: '要我把 /retro、/research 模…', time: '22:16', messages: ctoMessages, tasks: [{ id: 'cto-task', title: '设计项目记忆沉淀方式', status: 'finished', detail: '已确定使用项目经验文档与全局调研库两层结构。' }] },
   simpleConversation('reader', 'reader', '原话是：“Hot take: if your C…', '这篇帖子的价值在于反常识，但结论需要加边界。我把原话、上下文和我自己的判断分开整理，避免把情绪当成论据。'),
   simpleConversation('journal', '日记本', '都设好了。每周日晚上 9 点左…', '都设好了。每周日晚上 9 点左右，我会把这周的记录整理成一份简短回顾，只保留情绪变化、重要事件和下周想继续的事。'),
-  simpleConversation('grok', '探索 grok bot', '你可以把 routine 理解成一条…', '你可以把 routine 理解成一条带触发条件的工作流：什么时候跑、要看什么、发生变化时才通知你。先从每天一次的轻量任务开始。'),
+  simpleConversation('morilo', '探索 Morilo', '你可以把 routine 理解成一条…', '你可以把 routine 理解成一条带触发条件的工作流：什么时候跑、要看什么、发生变化时才通知你。先从每天一次的轻量任务开始。'),
   { id: 'macos', agentId: 'macos', title: '我的 MacOS', preview: '记住了。memos 的入口在你…', time: '20:05', messages: macMessages, tasks: [{ id: 'mac-task', title: '调研本地命令行工具', status: 'running', detail: '正在检查五个命令行工具的非交互调用方式。' }], tag: '帮我打理好我的 Mac' },
   simpleConversation('bookmarks', 'X 收藏导读', '第一份导读发完了，积压的 20…', '第一份导读发完了。积压的收藏已经按 AI 工具、产品设计和工程实践分成三组，下一篇会先读 AI 工具这一组。'),
   simpleConversation('todo', 'TODO killer', '已加到 Zilin 的待办清单 第 5…', '已加到 Zilin 的待办清单第 5 项。我把任务拆成了两个可勾选项，完成后会自动归档到今天的记录里。'),
