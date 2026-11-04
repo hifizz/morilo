@@ -6,7 +6,11 @@ Morilo ships as a self-contained macOS app. The packaged app embeds its own Node
 
 `.github/workflows/build.yml` runs on pushes to `main` and `develop`, on **all** tags, on `workflow_dispatch`, and on pull requests to `main`/`develop` (PRs run only the `checks` job — tests, generated-binding freshness, Markdown checks and the frontend build).
 
-Two packaging jobs build natively per architecture: `macos-15` for `arm64` (Apple Silicon) and `macos-15-intel` for `amd64` (Intel). Each job runs `npm run build`, verifies the bundle with `codesign --verify --deep --strict` and the packaged-runtime probe test (`TestPackagedModelConnection`, a local SSE fixture — no paid provider call), then uploads the DMG plus its `.sha256` as a workflow artifact named `morilo-<label>-<arch>` with a 14-day retention. File names carry the version, branch/tag + 8-char SHA label, architecture and a `unsigned`/`notarized` status, e.g. `morilo-0.1.0-main-a1b2c3d4-arm64-unsigned.dmg`.
+Checks and both packaging jobs use `macos-15-intel`, avoiding dependence on the constrained hosted ARM runner pool. MyGo cross-compiles the Apple Silicon app; the preparation script explicitly installs the target architecture's Node and Pi dependencies. Each job runs `npm run prepare:runtime -- <arch>` then `npx mygo build -platform darwin/<arch>`, verifies the signature with `codesign --verify --deep --strict`, and checks the app and Node binary architectures with `lipo`.
+
+The Intel job additionally executes the packaged-runtime probe (`TestPackagedModelConnection`, a local SSE fixture with installed Node/Pi excluded from PATH — no paid provider call). The cross-built ARM package cannot execute on an Intel runner; test it on Apple Silicon before a release using `MORILO_PACKAGED_RESOURCES="<app>/Contents/Resources" go test . -run '^TestPackagedModelConnection$' -count=1`. The initial ARM package passed this check locally.
+
+Both jobs upload the DMG plus its `.sha256` as a workflow artifact named `morilo-<label>-<arch>` with a 14-day retention. File names carry the version, branch/tag + 8-char SHA label, architecture and an `unsigned`/`notarized` status, e.g. `morilo-0.1.0-main-a1b2c3d4-arm64-unsigned.dmg`.
 
 The workflow does not require or receive model provider, Instabox or Composio keys.
 

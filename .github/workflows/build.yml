@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 20
     outputs:
       version: ${{ steps.metadata.outputs.version }}
@@ -58,12 +58,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: macos-15
-            arch: arm64
-          - runner: macos-15-intel
-            arch: amd64
-    runs-on: ${{ matrix.runner }}
+        arch: [arm64, amd64]
+    runs-on: macos-15-intel
     timeout-minutes: 60
     env:
       BUILD_VERSION: ${{ needs.checks.outputs.version }}
@@ -122,13 +118,27 @@ jobs:
           echo "MORILO_NOTARY_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
           echo 'MORILO_SIGNING_STATUS=notarized' >> "$GITHUB_ENV"
       - name: Build self-contained app and disk image
-        run: npm run build -- -platform "darwin/$BUILD_ARCH"
-      - name: Verify bundled runtime without installed Node or Pi
+        run: |
+          npm run prepare:runtime -- "$BUILD_ARCH"
+          npx mygo build -platform "darwin/$BUILD_ARCH"
+      - name: Verify bundle signature and target architecture
         env:
           MORILO_PACKAGED_RESOURCES: ${{ github.workspace }}/build/darwin-${{ matrix.arch }}/Morilo.app/Contents/Resources
         run: |
-          codesign --verify --deep --strict "build/darwin-$BUILD_ARCH/Morilo.app"
-          go test . -run '^TestPackagedModelConnection$' -count=1
+          set -euo pipefail
+          app="build/darwin-$BUILD_ARCH/Morilo.app"
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
+          target_arch=arm64
+          if [[ "$BUILD_ARCH" == amd64 ]]; then target_arch=x86_64; fi
+          codesign --verify --deep --strict "$app"
+          lipo -verify_arch "$target_arch" "$app/Contents/MacOS/$executable"
+          lipo -verify_arch "$target_arch" "$MORILO_PACKAGED_RESOURCES/runtime/bin/node"
+          test -f "$MORILO_PACKAGED_RESOURCES/runtime/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+      - name: Run native Intel runtime without installed Node or Pi
+        if: matrix.arch == 'amd64'
+        env:
+          MORILO_PACKAGED_RESOURCES: ${{ github.workspace }}/build/darwin-amd64/Morilo.app/Contents/Resources
+        run: go test . -run '^TestPackagedModelConnection$' -count=1
       - name: Name packages and generate checksums
         run: |
           set -euo pipefail
