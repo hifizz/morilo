@@ -625,3 +625,40 @@ func TestIntegrationsPendingIsNotConnectedAndAllProfilesValidated(t *testing.T) 
 		t.Fatal("unknown profile reached provider")
 	}
 }
+
+func TestDecodeDevelopmentCredential(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+		fail  bool
+	}{
+		{name: "quoted ascii", input: "password: \"0123456789abcdef\"\n", want: "0123456789abcdef"},
+		{name: "quoted empty", input: "password: \"\"\n", want: ""},
+		{name: "hex with escapes", input: "password: 0x71756F746522206261636B736C6173685C2061706F7374726F70686527  \"ignored rendering\"\n", want: "quote\" backslash\\ apostrophe'"},
+		{name: "hex unicode", input: "password: 0xE4B8ADE696872DE298832DCF80  \"ignored rendering\"\n", want: "中文-☃-π"},
+		{name: "bad hex", input: "password: 0xZZ sensitive-value", fail: true},
+		{name: "hex no payload", input: "password: 0x", fail: true},
+		{name: "unexpected", input: "unexpected sensitive-value", fail: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, err := decodeDevelopmentCredential([]byte(tt.input))
+			if tt.fail {
+				if err == nil || err.Error() != "unexpected macOS credential response" {
+					t.Fatalf("error = %v, want exact 'unexpected macOS credential response'", err)
+				}
+				if value != nil {
+					t.Fatalf("value = %q, want nil", value)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if string(value) != tt.want {
+				t.Fatalf("value = %q, want %q", value, tt.want)
+			}
+		})
+	}
+}

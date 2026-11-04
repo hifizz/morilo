@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -111,6 +114,26 @@ func newIntegrationsAt(dir string, validateProfile func(string) error) (*Integra
 		servers:      make(map[string]*http.Server),
 		extensionDir: piAgentDir,
 	}
+	// macOS also checks keychain partition IDs, which bind self-signed apps
+	// to each build's CDHash. Use Apple's stable client during development.
+	if runtime.GOOS == "darwin" && mygo.IsDev() {
+		s.secretGet = func() ([]byte, error) {
+			value, err := runDevelopmentCredentialCommand([]string{
+				"find-generic-password", "-s", "dev.grokbot.app.integrations",
+				"-a", "composio-api-key", "-g",
+			}, "")
+			if err != nil {
+				return nil, err
+			}
+			return decodeDevelopmentCredential(value)
+		}
+		s.secretSet = func(value []byte) error {
+			// Hex on stdin avoids both command injection and secrets in argv.
+			input := "add-generic-password -U -s dev.grokbot.app.integrations -a composio-api-key -X " + hex.EncodeToString(value) + "\n"
+			_, err := runDevelopmentCredentialCommand([]string{"-i"}, input)
+			return err
+		}
+	}
 	data, err := os.ReadFile(s.configPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -128,6 +151,39 @@ func newIntegrationsAt(dir string, validateProfile func(string) error) (*Integra
 		}
 	}
 	return s, nil
+}
+
+func runDevelopmentCredentialCommand(args []string, input string) ([]byte, error) {
+	cmd := exec.Command("/usr/bin/security", args...)
+	cmd.Stdin = strings.NewReader(input)
+	cmd.Stdout = io.Discard
+	var output bytes.Buffer
+	cmd.Stderr = &output
+	err := cmd.Run()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 44 {
+		return nil, mygo.ErrSecretNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
+}
+
+func decodeDevelopmentCredential(output []byte) ([]byte, error) {
+	text := strings.TrimSpace(string(output))
+	if quoted, ok := strings.CutPrefix(text, `password: "`); ok && strings.HasSuffix(quoted, `"`) {
+		return []byte(strings.TrimSuffix(quoted, `"`)), nil
+	}
+	if encoded, ok := strings.CutPrefix(text, "password: 0x"); ok {
+		fields := strings.Fields(encoded)
+		if len(fields) > 0 {
+			if value, err := hex.DecodeString(fields[0]); err == nil {
+				return value, nil
+			}
+		}
+	}
+	return nil, errors.New("unexpected macOS credential response")
 }
 
 func integrationCredentialError(action string, err error) error {

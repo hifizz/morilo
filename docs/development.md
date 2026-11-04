@@ -36,3 +36,16 @@ user keychain search list so `codesign` finds it.
   existing identity instead.
 - Non-macOS: `setup-dev-signing.sh` exits immediately and `dev.sh` passes
   through to plain `mygo dev`.
+
+### Keychain credentials in dev builds
+
+A stable signing requirement is not the whole story on macOS: keychain item
+ACLs also carry partition entries that bind self-signed apps to each build's
+CDHash, so a rebuilt dev binary can be re-prompted for items it previously
+unlocked. In macOS development (`mygo dev`), credential reads and writes therefore
+go through Apple's stable `/usr/bin/security` client instead of the in-app
+secret backend — its identity does not change between builds. An item
+created under an earlier signature (such as the existing Composio key) can
+still require a one-time password + Always Allow grant for `/usr/bin/security`
+itself; after that, access stays silent across rebuilds. Production builds
+keep using the native MyGo secret backend.
