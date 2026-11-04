@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "mygo dev",
+    "dev": "bash scripts/dev.sh",
+    "dev:setup": "bash scripts/setup-dev-signing.sh",
     "build": "mygo build",
     "generate": "mygo generate"
   },

@@ -72,7 +72,7 @@ function ConversationApp({ profileID }: { profileID: string }) {
   const [integrationsOpen, setIntegrationsOpen] = useState(false)
   const [referralOpen, setReferralOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null)
-  const integrationStore = useIntegrationStore()
+  const integrationStore = useIntegrationStore(integrationsOpen)
   const [typingFor, setTypingFor] = useState<string | null>(null)
   const [progress, setProgress] = useState<Record<string, string>>({})
   const [toast, setToast] = useState('')

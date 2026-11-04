@@ -8,7 +8,7 @@ import type { IntegrationStore, PrivateSkill } from './types'
 const emptyState = (): IntegrationState => ({ configured: false, connections: [] })
 const integrationErrorMessage = (err: unknown, fallback: string) => isCallError(err) ? err.message : fallback
 
-export function useIntegrationStore(): IntegrationStore {
+export function useIntegrationStore(active: boolean): IntegrationStore {
   const { profile, t } = useSettings()
   const profileID = profile?.id ?? ''
   const desktop = isMyGo()
@@ -63,19 +63,16 @@ export function useIntegrationStore(): IntegrationStore {
     setBusy(false)
     mutating.current = false
     awaitingApp.current = ''
-    void refresh(false)
-    const onFocus = () => { if (!mutating.current) void refresh(false) }
-    const onVisible = () => { if (document.visibilityState === 'visible') onFocus() }
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onVisible)
     return () => {
       alive.current = false
       epoch.current++
       requestID.current++
-      window.removeEventListener('focus', onFocus)
-      document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [profileID, refresh])
+  }, [profileID])
+
+  useEffect(() => {
+    if (active) void refresh()
+  }, [active, refresh])
 
   const mutate = async (action: () => Promise<unknown>, openedAppId = '') => {
     if (!desktop || !profileID || mutating.current) return false
