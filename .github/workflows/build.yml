@@ -18,7 +18,7 @@ concurrency:
 jobs:
   checks:
     runs-on: macos-15-intel
-    timeout-minutes: 20
+    timeout-minutes: 60
     outputs:
       version: ${{ steps.metadata.outputs.version }}
       label: ${{ steps.metadata.outputs.label }}
@@ -51,39 +51,8 @@ jobs:
           git diff --exit-code -- frontend/src/mygo.ts
           npm --prefix frontend run test:markdown
           npm --prefix frontend run build
-
-  package:
-    needs: checks
-    if: github.event_name != 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [arm64, amd64]
-    runs-on: macos-15-intel
-    timeout-minutes: 60
-    env:
-      BUILD_VERSION: ${{ needs.checks.outputs.version }}
-      BUILD_LABEL: ${{ needs.checks.outputs.label }}
-      BUILD_ARCH: ${{ matrix.arch }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            frontend/package-lock.json
-            runtime/package-lock.json
-      - name: Install build dependencies
-        run: |
-          npm ci
-          npm --prefix frontend ci
       - name: Configure optional Developer ID signing
+        if: github.event_name != 'pull_request'
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -118,49 +87,55 @@ jobs:
           echo "MORILO_NOTARY_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
           echo 'MORILO_SIGNING_STATUS=notarized' >> "$GITHUB_ENV"
       - name: Build self-contained app and disk image
-        run: |
-          npm run prepare:runtime -- "$BUILD_ARCH"
-          npx mygo build -platform "darwin/$BUILD_ARCH"
-      - name: Verify bundle signature and target architecture
+        if: github.event_name != 'pull_request'
         env:
-          MORILO_PACKAGED_RESOURCES: ${{ github.workspace }}/build/darwin-${{ matrix.arch }}/Morilo.app/Contents/Resources
-        run: |
-          set -euo pipefail
-          app="build/darwin-$BUILD_ARCH/Morilo.app"
-          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
-          target_arch=arm64
-          if [[ "$BUILD_ARCH" == amd64 ]]; then target_arch=x86_64; fi
-          codesign --verify --deep --strict "$app"
-          lipo -verify_arch "$target_arch" "$app/Contents/MacOS/$executable"
-          lipo -verify_arch "$target_arch" "$MORILO_PACKAGED_RESOURCES/runtime/bin/node"
-          test -f "$MORILO_PACKAGED_RESOURCES/runtime/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
-      - name: Run native Intel runtime without installed Node or Pi
-        if: matrix.arch == 'amd64'
-        env:
-          MORILO_PACKAGED_RESOURCES: ${{ github.workspace }}/build/darwin-amd64/Morilo.app/Contents/Resources
-        run: go test . -run '^TestPackagedModelConnection$' -count=1
-      - name: Name packages and generate checksums
+          BUILD_VERSION: ${{ steps.metadata.outputs.version }}
+          BUILD_LABEL: ${{ steps.metadata.outputs.label }}
         run: |
           set -euo pipefail
           mkdir -p build/artifacts
-          filename="morilo-$BUILD_VERSION-$BUILD_LABEL-$BUILD_ARCH-$MORILO_SIGNING_STATUS.dmg"
-          mv "build/darwin-$BUILD_ARCH/morilo-$BUILD_VERSION-$BUILD_ARCH.dmg" "build/artifacts/$filename"
-          cd build/artifacts
-          shasum -a 256 "$filename" > "$filename.sha256"
-      - uses: actions/upload-artifact@v4
+          for BUILD_ARCH in arm64 amd64; do
+            npm run prepare:runtime -- "$BUILD_ARCH"
+            npx mygo build -platform "darwin/$BUILD_ARCH"
+            app="$PWD/build/darwin-$BUILD_ARCH/Morilo.app"
+            executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
+            target_arch=arm64
+            if [[ "$BUILD_ARCH" == amd64 ]]; then target_arch=x86_64; fi
+            codesign --verify --deep --strict "$app"
+            lipo -verify_arch "$target_arch" "$app/Contents/MacOS/$executable"
+            lipo -verify_arch "$target_arch" "$app/Contents/Resources/runtime/bin/node"
+            test -f "$app/Contents/Resources/runtime/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+            if [[ "$BUILD_ARCH" == amd64 ]]; then
+              MORILO_PACKAGED_RESOURCES="$app/Contents/Resources" go test . -run '^TestPackagedModelConnection$' -count=1
+            fi
+            filename="morilo-$BUILD_VERSION-$BUILD_LABEL-$BUILD_ARCH-$MORILO_SIGNING_STATUS.dmg"
+            mv "build/darwin-$BUILD_ARCH/morilo-$BUILD_VERSION-$BUILD_ARCH.dmg" "build/artifacts/$filename"
+            (cd build/artifacts && shasum -a 256 "$filename" > "$filename.sha256")
+          done
+      - name: Upload Apple Silicon package
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
         with:
-          name: morilo-${{ needs.checks.outputs.label }}-${{ matrix.arch }}
-          path: build/artifacts/*
+          name: morilo-${{ steps.metadata.outputs.label }}-arm64
+          path: build/artifacts/*-arm64-*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Intel package
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: morilo-${{ steps.metadata.outputs.label }}-amd64
+          path: build/artifacts/*-amd64-*
           if-no-files-found: error
           retention-days: 14
       - name: Remove signing material
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         run: |
           security delete-keychain "$RUNNER_TEMP/morilo-signing.keychain-db" || true
           rm -f "$RUNNER_TEMP/morilo-signing.p12"
 
   release:
-    needs: [checks, package]
+    needs: checks
     if: github.ref_type == 'tag' && needs.checks.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
