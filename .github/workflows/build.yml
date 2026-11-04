@@ -102,8 +102,8 @@ jobs:
             target_arch=arm64
             if [[ "$BUILD_ARCH" == amd64 ]]; then target_arch=x86_64; fi
             codesign --verify --deep --strict "$app"
-            lipo -verify_arch "$target_arch" "$app/Contents/MacOS/$executable"
-            lipo -verify_arch "$target_arch" "$app/Contents/Resources/runtime/bin/node"
+            lipo "$app/Contents/MacOS/$executable" -verify_arch "$target_arch"
+            lipo "$app/Contents/Resources/runtime/bin/node" -verify_arch "$target_arch"
             test -f "$app/Contents/Resources/runtime/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
             if [[ "$BUILD_ARCH" == amd64 ]]; then
               MORILO_PACKAGED_RESOURCES="$app/Contents/Resources" go test . -run '^TestPackagedModelConnection$' -count=1
