@@ -25,7 +25,11 @@ Morilo is an early-stage desktop AI app built with Go, MyGo and React. Keep sepa
 
 Packages target **macOS 13.5 or later**, on Apple Silicon and Intel. They include **Node.js 24.22.2 and Pi 1.5.0**; end users do not need Go, Node or Pi installed.
 
-[GitHub Actions](https://github.com/hifizz/morilo/actions/workflows/build.yml) produces preview packages for `main` and `develop`. Unsigned packages are marked as test builds. Signed, notarized versions are published through [GitHub Releases](https://github.com/hifizz/morilo/releases) once the maintainer configures Apple signing credentials. See [distribution details](docs/distribution.md).
+Download a DMG from [GitHub Releases](https://github.com/hifizz/morilo/releases/latest): choose `arm64` for Apple Silicon (M series), or `amd64` for Intel. Open the DMG and drag Morilo to Applications.
+
+Packages marked `unsigned` are ad-hoc signed, without Developer ID signing or Apple notarization. If macOS blocks an app you downloaded from this repository, attempt to open it, then use **System Settings → Privacy & Security → Open Anyway**.
+
+[GitHub Actions](https://github.com/hifizz/morilo/actions/workflows/build.yml) also produces preview packages for `main` and `develop`. Version tags publish to GitHub Releases whether or not Apple signing credentials are configured. See [distribution details](docs/distribution.md).
 
 ## Run locally
 

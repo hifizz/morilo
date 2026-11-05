@@ -1,6 +1,6 @@
 # 面向第三方用户的发布方案
 
-状态：已按本文实现——连接管理与 onboarding（Phase 1/2）、内置运行时打包（Phase 3）代码均已落地，CI 打包/发布流程见 [distribution.md](distribution.md)。仍待完成：真实 Apple 签名/公证凭据的端到端验证、真实 Instabox 创建流程的线上验证、以及随文档更新的最终验收。后文保留原始设计推导以便审阅。
+状态：已按本文实现——连接管理与 onboarding（Phase 1/2）、内置运行时打包（Phase 3）代码均已落地并验收，CI 打包/发布流程见 [distribution.md](distribution.md)。Apple 签名与公证为可选增强而非发布门槛；仍待完成：真实 Instabox 创建流程的线上验证。后文保留原始设计推导以便审阅。
 
 ## 目标与首版范围
 
@@ -167,7 +167,7 @@ on:
 
 公共安装包要获得正常的 macOS 分发体验，需要维护者的 Developer ID Application 证书及 Apple 公证凭据。它们作为发布 secrets 保存在 GitHub；模型、Instabox、Composio 的运行时 key 不进入 CI。当前本机的自签开发证书不能替代正式分发签名。
 
-未配置正式签名时可先生成明确标注的未公证测试产物；正式发布任务应显式失败，不能悄悄发布成“已签名”版本。
+未配置正式签名时，版本 tag 也可发布到 GitHub Releases，产物明确标注为 unsigned，发布说明提供首次打开指引。配置 Developer ID 与公证凭据后自动生成 notarized 包；签名、公证是可选的分发增强，不是发布门槛。
 
 自动出包与客户端自动更新分别实现。当前 Updates 页面是演示逻辑；首版可改为真实版本号和 Release 下载入口，后续再接入 MyGo 的签名更新机制。
 

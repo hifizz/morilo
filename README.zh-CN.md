@@ -25,7 +25,11 @@ Morilo 是一个基于 Go、MyGo 和 React 的早期桌面 AI 应用。它将多
 
 安装包面向 **macOS 13.5 或更新版本**，支持 Apple Silicon 和 Intel，包含 **Node.js 24.22.2 与 Pi 1.5.0**。使用安装包不需要安装 Go、Node 或 Pi。
 
-[GitHub Actions](https://github.com/hifizz/morilo/actions/workflows/build.yml) 会为 `main` 和 `develop` 生成预览包；未签名包明确标为测试用途。维护者配置 Apple 发布凭据后，签名并公证的版本通过 [GitHub Releases](https://github.com/hifizz/morilo/releases) 发布。详见[分发说明](docs/distribution.md)。
+从 [GitHub Releases](https://github.com/hifizz/morilo/releases/latest) 下载安装包：Apple Silicon（M 系列）选择 `arm64`，Intel 选择 `amd64`。打开 DMG，将 Morilo 拖到「应用程序」。
+
+文件名标有 `unsigned` 的包使用临时签名，未经 Developer ID 签名和 Apple 公证。如果 macOS 拦截了从本仓库下载的应用，请先尝试打开，再前往 **系统设置 → 隐私与安全性 → 仍要打开**。
+
+[GitHub Actions](https://github.com/hifizz/morilo/actions/workflows/build.yml) 也会为 `main` 和 `develop` 生成预览包。版本 tag 会发布到 GitHub Releases，无需先配置 Apple 发布凭据。详见[分发说明](docs/distribution.md)。
 
 ## 本地运行
 

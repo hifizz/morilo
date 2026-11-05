@@ -16,7 +16,7 @@ The workflow does not require or receive model provider, Instabox or Composio ke
 
 ## Signing and notarization
 
-Signing is optional per job. When all six secrets are present the job creates a temporary keychain, imports a Developer ID Application certificate, configures a notarytool profile, and produces a signed + notarized DMG. When any secret is missing, the same job still produces and uploads an **unsigned** DMG for testing; the `release` job then fails explicitly rather than publishing unsigned builds.
+Signing is optional per job. When all six secrets are present the job creates a temporary keychain, imports a Developer ID Application certificate, configures a notarytool profile, and produces a signed + notarized DMG. When any secret is missing, the same job produces an ad-hoc signed DMG marked **unsigned**, and version tags publish it to GitHub Releases. Apple Developer ID signing and notarization are optional for this distribution flow.
 
 | Secret | Content |
 | --- | --- |
@@ -45,6 +45,8 @@ git tag v<version>
 git push origin v<version>
 ```
 
-The `release` job requires **both** `*-notarized.dmg` artifacts (arm64 and amd64) to exist — it verifies the checksums, then creates (or updates) the GitHub Release, marking prereleases automatically. Missing signing secrets make this job fail explicitly; unsigned artifacts remain available from the workflow run.
+The `release` job requires one DMG and its checksum for **each** architecture (arm64 and amd64), accepts both `unsigned` and `notarized` packages, verifies the checksums, then creates (or updates) the GitHub Release. Semver prerelease tags are marked as prereleases automatically. Release notes explain the package labels and how to install an unsigned build.
 
-The repository currently has no tag or release produced by this work. Automatic updates are not enabled; users download new versions from GitHub Releases.
+Packages marked `unsigned` are ad-hoc signed, without Developer ID signing or Apple notarization. If macOS blocks an app downloaded from this repository, attempt to open it, then use **System Settings → Privacy & Security → Open Anyway**. No Mac App Store submission is involved.
+
+Automatic updates are not enabled; users download new versions from GitHub Releases.

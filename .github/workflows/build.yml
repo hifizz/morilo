@@ -147,15 +147,16 @@ jobs:
           pattern: morilo-${{ needs.checks.outputs.label }}-*
           path: release
           merge-multiple: true
-      - name: Require both notarized architectures
+      - name: Require both architectures and verify checksums
         env:
           BUILD_VERSION: ${{ needs.checks.outputs.version }}
           BUILD_LABEL: ${{ needs.checks.outputs.label }}
         run: |
+          set -euo pipefail
           for arch in arm64 amd64; do
-            file="release/morilo-$BUILD_VERSION-$BUILD_LABEL-$arch-notarized.dmg"
-            if [[ ! -f "$file" ]]; then
-              echo '::error::A public Release requires Developer ID signing and Apple notarization. Configure the six signing secrets documented in docs/distribution.md. Unsigned test packages remain available as Actions artifacts.'
+            packages=(release/morilo-"$BUILD_VERSION"-"$BUILD_LABEL"-"$arch"-*.dmg)
+            if [[ ${#packages[@]} -ne 1 || ! -f "${packages[0]}" || ! -f "${packages[0]}.sha256" ]]; then
+              echo "::error::Expected one $arch DMG and its SHA-256 checksum."
               exit 1
             fi
           done
@@ -168,7 +169,21 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           PRERELEASE: ${{ needs.checks.outputs.prerelease }}
         run: |
-          args=(--verify-tag --title "$RELEASE_TAG" --generate-notes)
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<'EOF'
+          Morilo is an early-stage desktop AI app with user-owned model connections, local conversations, and optional Instabox computers.
+
+          ### Install
+
+          - Requires macOS 13.5 or later. Choose `arm64` for Apple Silicon (M series), or `amd64` for Intel.
+          - Open the DMG, drag Morilo to Applications, then open Morilo.
+          - Packages marked `unsigned` are ad-hoc signed, without Developer ID signing or Apple notarization. If macOS blocks an app you downloaded from this repository, attempt to open it, then use **System Settings → Privacy & Security → Open Anyway**.
+          - Configure your own model provider in onboarding. Node.js and Pi are included; Instabox is optional.
+          - Each DMG includes a `.sha256` file for integrity verification.
+
+          [English guide](https://github.com/hifizz/morilo#install) · [简体中文](https://github.com/hifizz/morilo/blob/main/README.zh-CN.md#安装)
+          EOF
+          args=(--verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes)
           if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release/* --clobber
