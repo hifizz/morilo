@@ -10,6 +10,10 @@ export default defineConfig({
   slug: "morilo",
   identifier: "dev.morilo.app",
   version,
+  updates: {
+    publicKey: "lpLJF9W47ZAJT9LyUgaZr8muqN8ErcW6PM6vL9chWQY=",
+    github: "hifizz/morilo",
+  },
   macos: {
     minimumSystemVersion: "13.5",
     signingIdentity: process.env.MORILO_SIGN_IDENTITY || "-",

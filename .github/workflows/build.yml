@@ -16,6 +16,24 @@ concurrency:
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Validate PR title follows Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .{1,72}$'
+          if [[ ! "$PR_TITLE" =~ $pattern ]]; then
+            echo "::error::PR title must follow Conventional Commits: <type>(<scope>): <summary>"
+            echo "::error::Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+            echo "::error::Got: $PR_TITLE"
+            exit 1
+          fi
+          echo "OK: $PR_TITLE"
+
   checks:
     runs-on: macos-15-intel
     timeout-minutes: 60
@@ -91,12 +109,18 @@ jobs:
         env:
           BUILD_VERSION: ${{ steps.metadata.outputs.version }}
           BUILD_LABEL: ${{ steps.metadata.outputs.label }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p build/artifacts
           for BUILD_ARCH in arm64 amd64; do
             npm run prepare:runtime -- "$BUILD_ARCH"
             npx mygo build -platform "darwin/$BUILD_ARCH"
+            # Signed self-update archives, delta updates and manifests.
+            for f in "build/darwin-$BUILD_ARCH/update-darwin-$BUILD_ARCH.json" build/darwin-$BUILD_ARCH/*.tar.gz build/darwin-$BUILD_ARCH/*.delta; do
+              if [[ -f "$f" ]]; then mv "$f" build/artifacts/; fi
+            done
             app="$PWD/build/darwin-$BUILD_ARCH/Morilo.app"
             executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
             target_arch=arm64

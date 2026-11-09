@@ -75,7 +75,7 @@ selftest（main.go）会等页面加载后：向真实输入框注入 prompt →
 10. **设置/本地资料（Settings）**：`Settings` 绑定服务持久化 `settings.json`（0600 原子写）：Preferences（theme/accent/language/spellcheck/microphoneId/timezone，枚举+IANA 校验）+ 多 `LocalProfile`（id/name/email/memory，仅本地无云登录）+ activeProfileId；`SelectProfile('')` = 退出到选择页不删数据。Store/Chat 按 profile 分域：首 profile 仍用旧 `state.json` 与旧 pi session id，其余走 `profiles/<id>/` 与 `profileID:convID`；每条消息经 `contextMessage` 注入时区/当前时间/`<imported_memory>`。记忆导入限 .txt/.md/.json、64KiB、JSON 格式化追加。前端 `SettingsProvider`（MyGo 走服务、浏览器走 localStorage `morilo-settings`，串行写入，`t(zh,en)` 行内翻译、matchMedia 主题 → `documentElement.dataset.theme` + `mygo.Theme.SetSource`）；`App` = 加载/出错边界 → 无 active profile 时 `LocalProfilePicker` → `ConversationApp key=profileID`；Store.save 带 profileID、卸载时 flush。General 设置通过服务持久化；硬件加速/安全密钥为禁用态说明文案；麦克风测试仅本地电平。前端 `useIntegrationStore(integrationsOpen)` 仅在打开集成面板时刷新连接状态（启动/聚焦不再自动请求，显式刷新与变更操作照常）。Composio 集成由 `Integrations` 服务 + `MORILO_APPS_*` 桥接（`Chat.integrations`，piEnv 会剥 `COMPOSIO_API_KEY`/`MORILO_APPS_*`）；Composio key 存 OS 凭据服务 `dev.morilo.app.integrations`/`composio-api-key`，不落文件；macOS 开发构建例外走稳定的 `/usr/bin/security` 客户端读/写（自签应用的分区 ACL 按 CDHash 变，生产仍用 mygo.Secrets，同一登录钥匙串 service/account，无明文落盘、诊断不导出密钥）；仅支持 GitHub/Vercel，开放六个只读白名单工具。`MYGO_SELFTEST=1` 现在用临时 userData 目录隔离，不碰真实用户数据。
 11. **开发诊断**：仅开发构建且非 MYGO_SELFTEST 时启用 .mygo/diagnostics（目录 0700，文件 0600，不入 Git）。ready.json 提供 pid；request.json 为 {id,pid,action,appId?,slug?,arguments?}，response.json 按 id/pid 匹配返回 data/error。一次一个请求；支持 status/open-apps/screenshot/connect/tools/run，以及固定的 acceptance-start/acceptance-status，无任意 JS、shell 或密钥导出接口。status 只返回钥匙串是否存有密钥及当前资料的连接状态；连接及工具调用仍走 Integrations 的资料隔离、授权 URL 校验和只读工具白名单。acceptance-start 在当前真实资料中新建验收 Bot，通过真实输入框发送固定的六项只读查询；acceptance-status 观察实际 Chat 事件及渲染后的界面。生产构建无此入口。
 12. **聊天展示**：普通回复不主动播报工具名、调用参数或日志，明确的 API/调试请求仍可展示技术细节。Agent 消息使用 react-markdown + remark-gfm，保留默认 URL 过滤、禁用原始 HTML，图片仅显示替代文字，外链在默认浏览器打开；用户原文和历史消息数据不改写。定向检查：`npm --prefix frontend run test:markdown`。
-13. **独立安装与发布**：`runtime/package.json` 和锁文件固定 Pi，`.node-version` 与 `runtime/node-checksums.json` 固定 Node 及官方归档校验值。构建将运行时及依赖许可复制到平台 resources，生产优先通过绝对路径启动包内 Node/Pi。GitHub Actions 为 main/develop/所有 tag 生成双架构包；版本 tag 发布 Release，缺少 Apple 凭据时发布明确标注的 unsigned 包；签名和公证可选。Apple 发布凭据与运行时用户 key 完全分离，详见 `docs/distribution.md`。客户端自动更新尚未启用。
+13. **独立安装与发布**：`runtime/package.json` 和锁文件固定 Pi，`.node-version` 与 `runtime/node-checksums.json` 固定 Node 及官方归档校验值。构建将运行时及依赖许可复制到平台 resources，生产优先通过绝对路径启动包内 Node/Pi。GitHub Actions 为 main/develop/所有 tag 生成双架构包；版本 tag 发布 Release，缺少 Apple 凭据时发布明确标注的 unsigned 包；签名和公证可选。Apple 发布凭据与运行时用户 key 完全分离，详见 `docs/distribution.md`。客户端自动更新已启用：`mygo.config.ts` 的 `updates`（ed25519 公钥 + GitHub Releases feed）+ `plugins/updater`（后台检查、Install/Later/Skip 更新窗、下载校验签名后提示重启）；CI 用 `MYGO_UPDATER_PRIVATE_KEY` secret 产出 `update-<target>.json` 与 delta 包并随 Release 上传；密钥对在本机 `~/Library/Application Support/mygo/update-keys/`。
 
 ## 关键行为约定
 
@@ -88,6 +88,12 @@ selftest（main.go）会等页面加载后：向真实输入框注入 prompt →
 - 纯浏览器打开 :3000（无 `window.mygo`）时走演示假回复，便于前端独立开发
 - `¶` 是消息切泡分隔符：内容本身含 `¶` 会误切（已知边界，遇再收紧）
 - 应用数据按应用名分目录：开发构建与发布构建的 userData 各自独立（`~/Library/Application Support/Morilo Dev/` 与 `~/Library/Application Support/Morilo/`）；更改应用名后需要一次性迁移既有本地数据与凭据，迁移以复制为主并保留原件，仅更新必要的配置引用和内置品牌标签，不得盲目替换用户消息内容
+
+## 提交与 PR 规范
+
+- **Conventional Commits**：`<type>(<scope>): <summary>`。type ∈ `feat` `fix` `docs` `style` `refactor` `perf` `test` `build` `ci` `chore` `revert`；scope 可选小写（如 `chat` `settings` `computer`）；summary 用祈使句、≤72 字符、末尾不加句号；`!` 或 footer `BREAKING CHANGE:` 标破坏性变更。正文写"为什么"，不逐条复述 diff。
+- **PR 标题同格式**，CI 的 `pr-title` job 校验，不合规则阻塞合并；PR 正文按 `.github/PULL_REQUEST_TEMPLATE.md`：Summary（动机）、Changelog 勾选、Test plan（验证方式）。
+- **CHANGELOG.md 是发版硬约束**：用户可见改动在该 PR 中记入 `## [Unreleased]` 下的 `### Added/Changed/Deprecated/Removed/Fixed/Security` 小节；纯内部改动（CI/工具/文档/重构）不记。发版时在 `npm version` 的同一提交把 `[Unreleased]` 改名为 `## [x.y.z] - <date>`——`mygo build` 校验当前 package.json version 必须有对应小节，缺失则 CI 构建失败；该小节即应用内更新窗口展示的 release notes，用面向用户的英文撰写。
 
 ## 环境
 
